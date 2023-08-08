@@ -1,0 +1,35 @@
+def machin_truc(a:int, b:color) {
+
+}
+
+if (expr){
+
+}else if(expr){
+
+}else{
+
+}
+
+while(machin == true){
+
+}
+
+if(a !=== -9)
+b <= c <= g >= 15
+
+2+0.6-8*7/5%3
+
+a:int = 10
+
+create_canvas(100, 100);
+
+travel(x, y){
+    put(x, y, #0000ff);
+}
+
+subcanvas(0, 0, 100, 25){
+    fill(color(#ff0000));
+}
+
+
+save_canvas();
