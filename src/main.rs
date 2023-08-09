@@ -1,7 +1,9 @@
 use neoglot_lib::{regex::*, lexer::*};
 
+mod parser;
+
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq, Copy, Clone)]
-enum TokenType{
+pub enum TokenType{
     Ident,
 
     Int, Float, Hex, Bool,
@@ -12,6 +14,7 @@ enum TokenType{
     Comma, Colon, SemiColon,
 
     If, Else, While,
+    Travel, Subcanvas,
     Def,
 
     Plus, Minus, Mul,
@@ -28,18 +31,7 @@ impl Symbol for TokenType{}
 impl TokenKind for TokenType{}
 
 fn main() {
-    match test_tokenize(include_str!("test.pprs").to_string(), "test.pprs") {
-        LexingResult::Ok(toks) => {
-            for tok in toks {
-                println!("{tok:?}");
-            }
-        },
-        LexingResult::Err(errs) => {
-            for e in errs{
-                eprintln!("{e}");
-            }
-        }
-    }
+    test_parse(include_str!("test.pprs").to_string(), "test.pprs")
 }
 
 fn init_lexer(lexer:&mut Lexer<TokenType>){
@@ -95,6 +87,25 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
         .then(RegexElement::Item('l', Quantifier::Exactly(1)))
         .then(RegexElement::Item('e', Quantifier::Exactly(1)));
 
+    let travel_regex = Regex::new()
+        .then(RegexElement::Item('t', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('r', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('a', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('v', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('e', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('l', Quantifier::Exactly(1)));
+
+    let subcanvas_regex = Regex::new()
+        .then(RegexElement::Item('s', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('u', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('b', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('c', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('a', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('n', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('v', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('a', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('s', Quantifier::Exactly(1)));
+
     let def_regex = Regex::new()
         .then(RegexElement::Item('d', Quantifier::Exactly(1)))
         .then(RegexElement::Item('e', Quantifier::Exactly(1)))
@@ -135,6 +146,8 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(if_regex, TokenType::If));
     lexer.register(LexerNode::new(else_regex, TokenType::Else));
     lexer.register(LexerNode::new(while_regex, TokenType::While));
+    lexer.register(LexerNode::new(travel_regex, TokenType::Travel));
+    lexer.register(LexerNode::new(subcanvas_regex, TokenType::Subcanvas));
     lexer.register(LexerNode::new(def_regex, TokenType::Def));
 
     lexer.register(LexerNode::new(bool_regex, TokenType::Bool));
@@ -182,9 +195,59 @@ fn test_tokenize(content:String, path:&str) -> LexingResult<TokenType>{
     lexer.tokenize_content(content, &path)
 }
 
+fn test_parse(content:String, path: &str){
+    match test_tokenize(content, path){
+        LexingResult::Ok(tokens) => {
+            match parser::parse(&tokens, true){
+                Ok(frst) => {
+                    for ast in frst{
+                        println!("{ast:?}");
+                    }
+                },
+
+                Err(errs) => {
+                    for e in errs{
+                        eprintln!("{e}")
+                    }
+                }
+            }
+        },
+        LexingResult::Err(errs) =>{
+            for e in errs{
+                eprintln!("{e}");
+            }
+        }
+    }
+}
+
 fn tokenize(path: &str) -> LexingResult<TokenType>{
     let mut lexer = Lexer::new();
     init_lexer(&mut lexer);
 
     lexer.tokenize_file(path)
+}
+
+fn parse(path: &str){
+    match tokenize(path){
+        LexingResult::Ok(tokens) => {
+            match parser::parse(&tokens, true){
+                Ok(frst) => {
+                    for ast in frst{
+                        println!("{ast:?}");
+                    }
+                },
+
+                Err(errs) => {
+                    for e in errs{
+                        eprintln!("{e}")
+                    }
+                }
+            }
+        },
+        LexingResult::Err(errs) =>{
+            for e in errs{
+                eprintln!("{e}");
+            }
+        }
+    }
 }
