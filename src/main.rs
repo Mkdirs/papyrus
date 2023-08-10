@@ -201,7 +201,7 @@ fn test_parse(content:String, path: &str){
             match parser::parse(&tokens, true){
                 Ok(frst) => {
                     for ast in frst{
-                        println!("{ast:?}");
+                        println!("{ast:#?}");
                     }
                 },
 
