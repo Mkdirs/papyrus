@@ -168,11 +168,60 @@ pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Result<Ve
             })}
 
         }else if parser.on_token(TokenType::Def){
-            let mut ast = AST{ kind: parser.peek().unwrap().clone(), children:vec![] };
-            parser.skip(1);
-            ast.children.push(parse_structure(&mut parser, TokenType::Ident, true, semicolon_terminated)?);
-            
-            forest.push(ast);
+            let def = parser.pop().unwrap().clone();
+            let mut ast = AST{ kind: def, children:vec![] };
+
+            match expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::Ident, ast.kind.location.clone()){
+                Ok(_) => {
+                    let mut ident = AST{ kind: parser.pop().unwrap().clone(), children:vec![] };
+
+                    match parser.slice_block(TokenType::LParen, TokenType::RParen){
+                        Ok(tokens) => {
+                            let mut params_ast = AST{ kind: parser.peek().unwrap().clone(), children: vec![] };
+                            
+                            let params = split_list(TokenType::Comma, tokens);
+
+                            for param in params{
+                                if let Some(raw_expr) = parse_expression(&param){
+
+                                    let expr = normalize_expression(raw_expr?, false)?;
+                                    params_ast.children.push(expr);
+
+                                }else{ errors.push(ParsingError::NoTokens) }
+                            }
+
+                            ident.children.push(params_ast);
+                            ast.children.push(ident);
+
+                            parser.skip(tokens.len()+2);
+
+                            if let Some(token) = parser.peek(){
+                                let token = token.clone();
+                                if token.kind == TokenType::Colon{
+                                    parser.skip(1);
+
+                                    match expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::Ident, token.location.clone()){
+                                        Ok(_) => {
+                                            let ident = parser.pop().unwrap().clone();
+                                            ast.children.push(AST { kind: ident, children: vec![] });
+                                        },
+
+                                        Err(e) => errors.push(e)
+                                    }
+                                }
+
+                                let block = parse_block(&mut parser, semicolon_terminated)?;
+                                ast.children.push(block);
+                                forest.push(ast);
+
+                            }else{ errors.push(ParsingError::NoTokens) }
+                        },
+
+                        Err(e) => errors.push(e)
+                    }
+                },
+                Err(e) => errors.push(e)
+            }
 
         }else if parser.on_token(TokenType::Ident){
             let mut ast = AST{ kind: parser.peek().unwrap().clone(), children: vec![] };

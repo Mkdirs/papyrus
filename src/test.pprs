@@ -1,1 +1,35 @@
-Label10_uI:int;
+def corner(col:color){
+    subcanvas(0, 0, 2, 2){
+        fill(col);
+    }
+
+    subcanvas(7, 0, 2, 2){
+        fill(col);
+    }
+
+    subcanvas(0, 7, 2, 2){
+        fill(col);
+    }
+
+    subcanvas(7, 7, 2, 2){
+        fill(col);
+    }
+}
+
+create_canvas(10, 20);
+fill(#000000);
+corner(#333333);
+
+r = 5;
+cx = 5;
+cy = 10;
+
+travel(x, y){
+    dst = (x-cx) * (x-cx) + (y-cy) * (y-cy);
+
+    if (dst <= r*r) {
+        put(x, y, #ff0000);
+    }
+}
+
+save_canvas();
