@@ -1,4 +1,6 @@
-use neoglot_lib::{regex::*, lexer::*};
+use std::path::Path;
+
+use neoglot_lib::{regex::*, lexer::*, report};
 
 mod parser;
 
@@ -31,7 +33,7 @@ impl Symbol for TokenType{}
 impl TokenKind for TokenType{}
 
 fn main() {
-    test_parse(include_str!("test.pprs").to_string(), "test.pprs")
+    test_parse(include_str!("test.pprs").to_string(), "C:/Users/Utilisateur/papyrus/src/test.pprs")
 }
 
 fn init_lexer(lexer:&mut Lexer<TokenType>){
@@ -199,16 +201,14 @@ fn test_parse(content:String, path: &str){
     match test_tokenize(content, path){
         LexingResult::Ok(tokens) => {
             match parser::parse(&tokens, true){
-                Ok(frst) => {
+                Some(frst) => {
                     for ast in frst{
                         println!("{ast:#?}");
                     }
                 },
 
-                Err(errs) => {
-                    for e in errs{
-                        eprintln!("{e}")
-                    }
+                None => {
+                    eprintln!("Could not parse {path}");
                 }
             }
         },
@@ -231,16 +231,14 @@ fn parse(path: &str){
     match tokenize(path){
         LexingResult::Ok(tokens) => {
             match parser::parse(&tokens, true){
-                Ok(frst) => {
+                Some(frst) => {
                     for ast in frst{
                         println!("{ast:?}");
                     }
                 },
 
-                Err(errs) => {
-                    for e in errs{
-                        eprintln!("{e}")
-                    }
+                None => {
+                    eprintln!("Could not parse {path}");
                 }
             }
         },
