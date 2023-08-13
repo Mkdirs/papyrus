@@ -1,4 +1,4 @@
-use neoglot_lib::{lexer::Token, parser::{Parser, AST, ParsingError, expression::{ExpressionParser, Expr}, expect}, regex::{Regex, RegexElement, Quantifier}};
+use neoglot_lib::{lexer::Token, parser::{Parser, AST, expression::{ExpressionParser, Expr}, expect}, regex::{Regex, RegexElement, Quantifier}, report};
 
 use crate::TokenType;
 
@@ -31,113 +31,110 @@ fn type_binding_regex() -> Regex<TokenType>{
 
 
 
-pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Result<Vec<AST<Token<TokenType>>>, Vec<ParsingError<TokenType>>>{
+pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Vec<AST<Token<TokenType>>>>{
     let mut forest:Vec<AST<Token<TokenType>>> = vec![];
-    let mut errors:Vec<ParsingError<TokenType>> = vec![];
+    let mut sucess = true;
 
-    let mut parser:Parser<TokenType, Token<TokenType>> = Parser::new(tokens);
+    let mut parser:Parser<TokenType> = Parser::new(tokens);
 
     while !parser.finished(){
         if parser.on_regex(&typed_var_assign_regex()){
             match parse_typed_var_assign(&mut parser){
-                Ok(ast) => forest.push(ast),
-                Err(errs) => {
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
 
         }else if parser.on_regex(&inferred_var_assign_regex()){
             match parse_inferred_var_assign(&mut parser){
-                Ok(ast) => forest.push(ast),
-                Err(errs) => {
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
             
         }else if parser.on_regex(&type_binding_regex()){
             match parse_type_binding(&mut parser, semicolon_terminated){
-                Ok(ast) => forest.push(ast),
-                Err(errs) => {
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
             
         }else if parser.on_token(TokenType::If){
             match parse_if(&mut parser, semicolon_terminated){
-                Ok(ast) => forest.push(ast),
-                Err(errs) =>{
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
 
         }else if parser.on_token(TokenType::While){
             match parse_while(&mut parser, semicolon_terminated){
-                Ok(ast) => forest.push(ast),
-                Err(errs) =>{
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
 
         }else if parser.on_token(TokenType::Travel){
             match parse_travel(&mut parser, semicolon_terminated){
-                Ok(ast) => forest.push(ast),
-                Err(errs) => {
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
 
         }else if parser.on_token(TokenType::Subcanvas){
             match parse_subcanvas(&mut parser, semicolon_terminated){
-                Ok(ast) => forest.push(ast),
-                Err(errs) => {
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
 
         }else if parser.on_token(TokenType::Def){
             match parse_def(&mut parser, semicolon_terminated){
-                Ok(ast) => forest.push(ast),
-                Err(errs) => {
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
 
         }else if parser.on_token(TokenType::Ident){
             match parse_ident(&mut parser, semicolon_terminated) {
-                Ok(ast) => forest.push(ast),
-                Err(errs) => {
-                    for e in errs { errors.push(e); }
-                }
+                Some(ast) => forest.push(ast),
+                None => sucess = false
             }
 
         }else{
             let got = parser.peek().unwrap().clone();
-            errors.push(ParsingError::UnparsedSequence(got.location.clone()));
+            report(&format!("Unexpected token: '{}'", got.literal), got.location);
+            sucess = false;
             parser.skip(1);
         }
     }
 
-    if !errors.is_empty(){ Err(errors) }
-    else { Ok(forest) }
+    if !sucess{ None }
+    else { Some(forest) }
 }
 
-fn parse_typed_var_assign(parser:&mut Parser<TokenType, Token<TokenType>>) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_typed_var_assign(parser:&mut Parser<TokenType>) -> Option<AST<Token<TokenType>>>{
     match parser.slice_regex(&typed_var_assign_regex()){
-        Ok(tokens) => {
+        Some(tokens) => {
             
             let raw_expr = parse_expression(&tokens[4..tokens.len()]);
             if raw_expr.is_none(){
+                parser.skip(tokens.len());
+                report("Could not parse expression", tokens[4].location.clone());
+
+                if !expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                    report("Expected ';' at the end", tokens[tokens.len()-1].location.clone());
+                }
+
                 parser.skip(1);
-                return Err(vec![ParsingError::NoTokens])
+
+                return None;
             }
-            let normalized = match raw_expr.unwrap(){
-                Ok(raw_expr) => normalize_expression(raw_expr),
-                Err(e) => Err(e)
+            let normalized = match normalize_expression(raw_expr.unwrap()){
+                Some(expr) => Some(expr),
+                None => None
             };
 
-            if normalized.is_err(){
+            if normalized.is_none(){
+                parser.skip(tokens.len());
+
+                if !expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                    report("Expected ';' at the end", tokens[tokens.len()-1].location.clone());
+                }
                 parser.skip(1);
-                return Err(normalized.unwrap_err());
+
+                return None;
             }
 
             let tree = AST{kind: tokens[3].clone(), children: vec![
@@ -152,45 +149,60 @@ fn parse_typed_var_assign(parser:&mut Parser<TokenType, Token<TokenType>>) -> Re
 
             parser.skip(tokens.len());
 
-            match expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon, tokens[tokens.len()-1].location.clone()){
-                Ok(_) => {
-                    parser.skip(1);
-                    Ok(tree)
-                },
-                Err(e) => {
-                    parser.skip(1);
-                    Err(vec![e])
-                }
-            }
+            let r = if !expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                report("Expected ';' at the end", tokens[tokens.len()-1].location.clone());
+                None
+            }else{
+                Some(tree)
+            };
+
+            parser.skip(1);
+            r
 
             
         },
 
-        Err(e) =>{
+        None =>{
+            report("Expected sequence 'identifier:identifier = <expr>;'", parser.peek().unwrap().location.clone());
             parser.skip(1);
-            Err(vec![e])
+            None
         }
     }
 }
 
-fn parse_inferred_var_assign(parser:&mut Parser<TokenType, Token<TokenType>>) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_inferred_var_assign(parser:&mut Parser<TokenType>) -> Option<AST<Token<TokenType>>>{
     match parser.slice_regex(&inferred_var_assign_regex()){
-        Ok(tokens) => {
+        Some(tokens) => {
             let raw_expr = parse_expression(&tokens[2..tokens.len()]);
 
             if raw_expr.is_none(){
+                parser.skip(tokens.len());
+                report("Could not parse expression", tokens[2].location.clone());
+                
+                if !expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                    report("Expected ';' at the end", tokens[tokens.len()-1].location.clone());
+                }
+
                 parser.skip(1);
-                return Err(vec![ParsingError::NoTokens])
+
+                return None;
             }
 
-            let normalized = match  raw_expr.unwrap() {
-                Ok(raw_expr) => normalize_expression(raw_expr),
-                Err(e) => Err(e)
+            let normalized = match normalize_expression(raw_expr.unwrap()) {
+                Some(expr) => Some(expr),
+                None => None
             };
 
-            if normalized.is_err(){
+            if normalized.is_none(){
+                parser.skip(tokens.len());
+
+                if !expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                    report("Expected ';' at the end", tokens[tokens.len()-1].location.clone());
+                }
+
                 parser.skip(1);
-                return Err(normalized.unwrap_err());
+
+                return None;
             }
 
             let tree = AST{kind: tokens[1].clone(), children: vec![
@@ -200,28 +212,28 @@ fn parse_inferred_var_assign(parser:&mut Parser<TokenType, Token<TokenType>>) ->
 
             parser.skip(tokens.len());
 
-            match expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon, tokens[tokens.len()-1].location.clone()){
-                Ok(_) => {
-                    parser.skip(1);
-                    Ok(tree)
-                },
-                Err(e) => {
-                    parser.skip(1);
-                    Err(vec![e])
-                }
-            }
+            let r = if !expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                report("Expected ';' at the end", tokens[tokens.len()-1].location.clone());
+                None
+            }else{
+                Some(tree)
+            };
+
+            parser.skip(1);
+            r
 
         },
-        Err(e) => {
+        None => {
+            report("Expected sequence 'identifier = <expr>;'", parser.peek().unwrap().location.clone());
             parser.skip(1);
-            Err(vec![e])
+            None
         }
     }
 }
 
-fn parse_type_binding(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>> {
+fn parse_type_binding(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>> {
     match parser.slice_regex(&type_binding_regex()){
-        Ok(tokens) => {
+        Some(tokens) => {
             let tree = AST{ kind: tokens[1].clone(), children: vec![
                 AST{ kind: tokens[0].clone(), children: vec![] },
                 AST{ kind: tokens[2].clone(), children: vec![] }
@@ -230,377 +242,445 @@ fn parse_type_binding(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon
             parser.skip(tokens.len());
 
             if semicolon_terminated{
-                match expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon, tokens[tokens.len()-1].location.clone()){
-                    Ok(_) => {
-                        parser.skip(1);
-                        Ok(tree)
-                    },
-                    Err(e) => {
-                        parser.skip(1);
-                        Err(vec![e])
+                if expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                    parser.skip(1);
+                    Some(tree)
+                }else{
+                    match parser.peek(){
+                        Some(tok) => {
+                            report(&format!("Expected ';' but instead got '{}'", tok.literal), tok.location.clone());
+                        },
+    
+                        None => {
+                            report("Expected ';' at the end", tokens[0].location.clone());
+                        }
                     }
+                    parser.skip(1);
+                    None
                 }
-            }else { Ok(tree) }
+            }else { Some(tree) }
         },
 
-        Err(e) => {
+        None => {
+            report("Expected sequence 'identifier:identifier''", parser.peek().unwrap().location.clone());
             parser.skip(1);
-            Err(vec![e])
+            None
         }
     }
 }
 
-fn parse_if(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_if(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let if_tok = parser.pop().unwrap().clone();
     match parser.slice_block(TokenType::LParen, TokenType::RParen){
-        Ok(tokens) =>{
+        Some(tokens) =>{
+            let r_paren = parser.peek_at(tokens.len()+1).unwrap().clone();
             parser.skip(tokens.len()+2);
             if let Some(raw_expr) = parse_expression(tokens){
-                match raw_expr{
-                    Ok(raw_expr) => {
-                        match normalize_expression(raw_expr){
-                            Ok(expr) => {
-                                let block = parse_block(parser, semicolon_terminated)?;
+                match normalize_expression(raw_expr){
+                    Some(expr) => {
 
-                                Ok(AST { kind: if_tok, children: vec![
-                                    expr,
-                                    block
-                                ] })
-                            },
-
-                            Err(e) => {
-                                parser.skip(1);
-                                Err(e)
-                            }
+                        if !expect(parser.pop().and_then(|e| Some(e.kind)), TokenType::LBracket){
+                            report("Expected block '{...}'", r_paren.location.clone());
+                            return None;
                         }
+
+                        let block = parse_block(parser, semicolon_terminated)?;
+
+                        Some(AST { kind: if_tok, children: vec![
+                            expr,
+                            block
+                        ] })
                     },
 
-                    Err(e) => {
+                    None => {
                         parser.skip(1);
-                        Err(e)
+                        None
                     }
                 }
 
                 
             }else{
+                report("Could not parse expression", if_tok.location.clone());
                 parser.skip(1);
-                Err(vec![ParsingError::NoTokens])
+                None
             }
 
         },
 
-        Err(e) => {
-            parser.skip(1);
-            Err(vec![e])
+        None => {
+            report("Expected sequence '(<expr>)'", if_tok.location.clone());
+            None
         }
     }
 }
 
-fn parse_while(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_while(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let while_tok = parser.pop().unwrap().clone();
     match parser.slice_block(TokenType::LParen, TokenType::RParen){
-        Ok(tokens) =>{
+        Some(tokens) =>{
+            let r_paren = parser.peek_at(tokens.len()+1).unwrap().clone();
             parser.skip(tokens.len()+2);
             if let Some(raw_expr) = parse_expression(tokens){
-                match raw_expr {
-                    Ok(raw_expr) => {
-                        match normalize_expression(raw_expr){
-                            Ok(expr) => {
-                                let block = parse_block(parser, semicolon_terminated)?;
+                match normalize_expression(raw_expr){
+                    Some(expr) => {
 
-                                Ok(AST { kind: while_tok, children: vec![
-                                    expr,
-                                    block
-                                ] })
-                            },
-
-                            Err(e) => {
-                                parser.skip(1);
-                                Err(e)
-                            }
+                        if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::LBracket){
+                            report("Expected block '{...}'", r_paren.location.clone());
+                            parser.skip(1);
+                            return None;
                         }
+
+                        let block = parse_block(parser, semicolon_terminated)?;
+
+                        Some(AST { kind: while_tok, children: vec![
+                            expr,
+                            block
+                        ] })
                     },
 
-                    Err(e) => {
+                    None => {
                         parser.skip(1);
-                        Err(e)
+                        None
                     }
                 }
 
                 
             }else{
+                report("Could not parse expression", while_tok.location.clone());
                 parser.skip(1);
-                Err(vec![ParsingError::NoTokens])
+                None
             }
 
         },
 
-        Err(e) => {
-            parser.skip(1);
-            Err(vec![e])
+        None => {
+            report("Expected sequence '(<expr>)'", while_tok.location.clone());
+            None
         }
     }
 }
 
-fn parse_travel(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_travel(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let travel_tok = parser.pop().unwrap().clone();
 
-    match expect(parser.pop().and_then(|e| Some(e.kind)), TokenType::LParen, travel_tok.location.clone()){
-        Ok(_) => {},
-        Err(e) => {
-            parser.skip(1);
-            return Err(vec![e]);
+    let l_paren = parser.pop();
+    if !expect(l_paren.and_then(|e| Some(e.kind)), TokenType::LParen){
+        match l_paren{
+            Some(tok) => {
+                report(&format!("Expected '(' but instead got '{}'", tok.literal), tok.location.clone());
+            },
+
+            None => {
+                report("Expected '('", travel_tok.location.clone());
+            }
         }
+        return None;
     }
+
    
 
     let x_ident = parser.pop();
-    match expect(x_ident.and_then(|e| Some(e.kind)), TokenType::Ident, travel_tok.location.clone()){
-        Ok(_) => {},
-        Err(e) => {
-            parser.skip(1);
-            return Err(vec![e]);
+    if !expect(x_ident.and_then(|e| Some(e.kind)), TokenType::Ident){
+        match x_ident{
+            Some(tok) => {
+                report(&format!("Expected identifier but instead got '{}'", tok.literal), tok.location.clone());
+            },
+
+            None => {
+                report("Expected identifier", travel_tok.location.clone());
+            }
         }
+        return None;
     }
     let x_ident = x_ident.unwrap().clone();
 
-    match expect(parser.pop().and_then(|e| Some(e.kind)), TokenType::Comma, travel_tok.location.clone()){
-        Ok(_) => {},
-        Err(e) => {
-            parser.skip(1);
-            return Err(vec![e]);
+    let comma = parser.pop();
+    if !expect(comma.and_then(|e| Some(e.kind)), TokenType::Comma){
+        match comma{
+            Some(tok) => {
+                report(&format!("Expected ',' but instead got '{}'", tok.literal), tok.location.clone());
+            },
+
+            None => {
+                report("Expected ','", x_ident.location.clone());
+            }
         }
+        return None;
     }
 
     let y_ident = parser.pop();
-    match expect(y_ident.and_then(|e| Some(e.kind)), TokenType::Ident, travel_tok.location.clone()){
-        Ok(_) => {},
-        Err(e) => {
-            parser.skip(1);
-            return Err(vec![e]);
+    if !expect(y_ident.and_then(|e| Some(e.kind)), TokenType::Ident){
+        match y_ident{
+            Some(tok) => {
+                report(&format!("Expected identifier but instead got '{}'", tok.literal), tok.location.clone());
+            },
+
+            None => {
+                report("Expected identifier", x_ident.location.clone());
+            }
         }
+        return None;
     }
     let y_ident = y_ident.unwrap().clone();
     
-    match expect(parser.pop().and_then(|e| Some(e.kind)), TokenType::RParen, travel_tok.location.clone()){
-        Ok(_) => {},
-        Err(e) => {
-            parser.skip(1);
-            return Err(vec![e]);
-        }
-    }
+    let r_paren = parser.pop();
+    if !expect(r_paren.and_then(|e| Some(e.kind)), TokenType::RParen){
+        match r_paren{
+            Some(tok) => {
+                report(&format!("Expected ')' but instead got '{}'", tok.literal), tok.location.clone());
+            },
 
+            None => {
+                report("Expected ')'", x_ident.location.clone());
+            }
+        }
+        return None;
+    }
+    let r_paren = r_paren.unwrap().clone();
+
+    if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::LBracket){
+        report("Expected block '{...}'", r_paren.location.clone());
+        parser.skip(1);
+        return None;
+    }
 
     let block = parse_block(parser, semicolon_terminated)?;
 
-    Ok(AST { kind: travel_tok, children: vec![
+    Some(AST { kind: travel_tok, children: vec![
         AST{ kind: x_ident, children: vec![] },
         AST{ kind: y_ident, children: vec![] },
         block
     ] })
 }
 
-fn parse_subcanvas(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_subcanvas(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let subcanvas_tok = parser.pop().unwrap().clone();
-    let mut errors = vec![];
+    let mut success = true;
     let mut children = vec![];
 
     match parser.slice_block(TokenType::LParen, TokenType::RParen){
-        Ok(tokens) => {
+        Some(tokens) => {
+            let r_paren = parser.peek_at(tokens.len()+1).unwrap().clone();
             parser.skip(tokens.len()+2);
+
             let args = split_list(TokenType::Comma, tokens);
-            if args.len() != 4 {
-                errors.push(ParsingError::UnparsedSequence(subcanvas_tok.location.clone()));
-            }
+            if args.is_none(){
+                report("Invalid arguments list", subcanvas_tok.location.clone());
+                success = false;
+            }else{
+                let args = args.unwrap();
+                if args.len() != 4 {
+                    success = false;
+                    report(&format!("subcanvas takes 4 arguments but {} were provided", args.len()), subcanvas_tok.location.clone());
+                }
 
-            for param in args{
-                if let Some(raw_expr) = parse_expression(&param){
-                    match raw_expr{
-                        Ok(raw_expr) => {
-                            match normalize_expression(raw_expr){
-                                Ok(expr) => children.push(expr),
-
-                                Err(errs) => {
-                                    for e in errs { errors.push(e); }
-                                }
-                            }
-                        },
-
-                        Err(errs) => {
-                            for e in errs { errors.push(e); }
+                for param in args{
+                    if let Some(raw_expr) = parse_expression(&param){
+                        match normalize_expression(raw_expr){
+                            Some(expr) => children.push(expr),
+    
+                            None => success = false
                         }
+                        
+                    }else{
+                        report("Could not parse expression", param[0].location.clone());
+                        success = false;
                     }
-                    
                 }
             }
+            
 
-            match parse_block(parser, semicolon_terminated){
-                Ok(ast) => children.push(ast),
-                Err(errs) =>{
-                    for e in errs { errors.push(e); }
-                }
-            }
-
-            if !errors.is_empty(){
+            if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::LBracket){
+                report("Expected block '{...}'", r_paren.location.clone());
                 parser.skip(1);
-                Err(errors) 
+                return None;
             }
-            else{
-                Ok(AST{ kind: subcanvas_tok, children })
-            }
+
+            children.push(parse_block(parser, semicolon_terminated)?);
+
+            if success{ Some(AST{ kind: subcanvas_tok, children }) }
+            else{ None }
                     
             
         },
 
-        Err(e) => {
+        None => {
+            report("Expected sequence '(<expr>, <expr>, <expr>, <expr>)'", subcanvas_tok.location.clone());
             parser.skip(1);
-            Err(vec![e])
+            None
         }
     }
 }
 
-fn parse_def(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_def(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let def_tok = parser.pop().unwrap().clone();
     let mut def_ast = AST{ kind: def_tok.clone(), children:vec![] };
 
     let ident_tok = parser.pop();
     
-    match expect(ident_tok.and_then(|t| Some(t.kind)), TokenType::Ident, def_tok.location.clone()){
-        Ok(_) => {
-            let ident_tok = ident_tok.unwrap().clone();
-            let mut ident_ast = AST{ kind: ident_tok, children: vec![] };
+    if expect(ident_tok.and_then(|t| Some(t.kind)), TokenType::Ident){
+        let ident_tok = ident_tok.unwrap().clone();
+        let mut ident_ast = AST{ kind: ident_tok.clone(), children: vec![] };
 
-            match parser.slice_block(TokenType::LParen, TokenType::RParen){
-                Ok(tokens) =>{
-                    let params = split_list(TokenType::Comma, tokens);
-                    let mut errors = vec![];
+        match parser.slice_block(TokenType::LParen, TokenType::RParen){
+            Some(tokens) =>{
+                parser.skip(tokens.len()+2);
+                let mut success = true;
+                let params = split_list(TokenType::Comma, tokens);
 
-                    for param in params{
-                        match parse_type_binding(&mut Parser::new(&param), false){
-                            Ok(ast) => ident_ast.children.push(ast),
-                            Err(errs) =>{
-                                for e in errs { errors.push(e); }
-                            }
-                        }
+                if params.is_none(){
+                    report("Invalid parameters list", def_tok.location.clone());
+                    success = false;
+                }
+
+                for param in params.unwrap_or_default(){
+                    match parse_type_binding(&mut Parser::new(&param), false){
+                        Some(ast) => ident_ast.children.push(ast),
+                        None =>{ success = false; }
                     }
+                }
 
-                    def_ast.children.push(ident_ast);
+                def_ast.children.push(ident_ast);
 
-                    parser.skip(tokens.len()+2);
-                    if let Some(token) = parser.peek(){
-                        let token = token.clone();
-                        if token.kind == TokenType::Colon{
-                            parser.skip(1);
+                if let Some(token) = parser.peek(){
+                    let token = token.clone();
+                    if token.kind == TokenType::Colon{
+                        parser.skip(1);
 
-                            match expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::Ident, token.location.clone()){
-                                Ok(_) => {
-                                    let ident = parser.pop().unwrap().clone();
-                                    def_ast.children.push(AST { kind: ident, children: vec![] });
+                        if expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::Ident){
+                            let ident = parser.pop().unwrap().clone();
+                            def_ast.children.push(AST { kind: ident, children: vec![] });
+                        }else{
+                            match parser.peek(){
+                                Some(tok) => {
+                                    report(&format!("Expected identifier but instead got '{}'", tok.literal), tok.location.clone());
+                                    parser.skip(1);
+                                    return None;
                                 },
 
-                                Err(e) => errors.push(e)
-                            }
-
-                        }
-
-                        match parse_block(parser, semicolon_terminated){
-                            Ok(ast) => def_ast.children.push(ast),
-                            Err(errs) => {
-                                for e in errs { errors.push(e); }
+                                None => {
+                                    report("Expected identifier", def_tok.location.clone());
+                                    parser.skip(1);
+                                    return None;
+                                }
                             }
                         }
 
-                    }else{ errors.push(ParsingError::NoTokens) }
+                    }
 
-                    if !errors.is_empty(){
-                        parser.skip(1);
-                        Err(errors)
-                    }
-                    else{
-                        Ok(def_ast)
-                    }
+                    def_ast.children.push(parse_block(parser, semicolon_terminated)?);
+
+                }else{
+                    report("Expected return type or body", def_tok.location.clone());
+                    parser.skip(1);
+                    return None;
+                }
+
+                if success{ Some(def_ast) }
+                else{ None }
 
 
                     
-                },
+            },
 
-                Err(e) =>{
-                    parser.skip(1);
-                    Err(vec![e])
-                }
+            None =>{
+                report("Expected sequence '(identifier:identifier, identifier:identifier...)'", def_tok.location.clone());
+                parser.skip(1);
+                None
             }
-        },
-
-        Err(e) => {
-            parser.skip(1);
-            Err(vec![e])
         }
+    }else{
+        match ident_tok{
+            Some(tok) => {
+                report(&format!("Expected identifier but instead got '{}'", tok.literal), tok.location.clone());
+            },
+
+            None => {
+                report("Expected identifier", def_tok.location.clone());
+            }
+        }
+        parser.skip(1);
+        None
     }
 }
 
-fn parse_ident(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_ident(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let mut ident_ast = AST{ kind: parser.pop().unwrap().clone(), children: vec![] };
     
     match parser.slice_block(TokenType::LParen, TokenType::RParen){
-        Ok(tokens) => {
-            let mut errors = vec![];
+        Some(tokens) => {
+            parser.skip(tokens.len()+2);
+
+            let mut success = true;
             let args = split_list(TokenType::Comma, tokens);
 
-            for arg in args{
+            if args.is_none(){
+                report("Invalid arguments list", ident_ast.kind.location.clone());
+                success = false;
+            }
+
+            for arg in args.unwrap_or_default(){
                 if let Some(raw_expr) = parse_expression(&arg){
-                    match raw_expr{
-                        Ok(raw_expr) => {
-                            match normalize_expression(raw_expr){
-                                Ok(expr) => ident_ast.children.push(expr),
-                                Err(errs) => {
-                                    for e in errs { errors.push(e); }
-                                }
-                            }
-                        },
-                        Err(errs) => {
-                            for e in errs { errors.push(e); }
+                    match normalize_expression(raw_expr){
+                        Some(expr) => ident_ast.children.push(expr),
+                        None => {
+                            success = false;
                         }
                     }
 
-                }else{ errors.push(ParsingError::NoTokens); }
-            }
-
-            parser.skip(tokens.len()+2);
-
-            if semicolon_terminated{
-                match expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon, ident_ast.kind.location.clone()){
-                    Ok(_) => parser.skip(1),
-                    Err(e) => errors.push(e)
+                }else{
+                    report("Could not parse expression", arg[0].location.clone());
+                    success = false;
                 }
             }
 
-            if !errors.is_empty(){
-                parser.skip(1);
-                Err(errors)
+            if semicolon_terminated{
+                if expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
+                    parser.skip(1);
+                }else{
+                    match parser.peek(){
+                        Some(tok) => {
+                            report(&format!("Expected ';' but instead got '{}'", tok.literal), tok.location.clone());
+                        },
+
+                        None => {
+                            report("Expected ';'", ident_ast.kind.location.clone());
+                        }
+                    }
+                    parser.skip(1);
+                    return None;
+                }
             }
-            else { Ok(ident_ast) }
+
+            if success{ Some(ident_ast) }
+            else { None }
 
         },
 
-        Err(e) => {
+        None => {
+            report("Expected sequence '(<expr>, <expr>...)'", ident_ast.kind.location.clone());
             parser.skip(1);
-            Err(vec![e])
+            None
         }
     }
 
 }
 
-fn split_list(delimiter:TokenType, tokens:&[Token<TokenType>]) -> Vec<Vec<Token<TokenType>>>{
+fn split_list(delimiter:TokenType, tokens: &[Token<TokenType>]) -> Option<Vec<Vec<Token<TokenType>>>>{
     let mut list:Vec<Vec<Token<TokenType>>> = vec![];
     let mut param = vec![];
     let mut open_paren = 0;
+    let mut num_delimiters = 0;
 
     for token in tokens{
         if token.kind == delimiter{
             if open_paren != 0{ param.push(token.clone()) }
             else{
-                list.push(param.clone());
-                param.clear();
+                num_delimiters += 1;
+                if !param.is_empty(){
+                    list.push(param.clone());
+                    param.clear();
+                }
             }
         }else{
             if token.kind == TokenType::LParen{ open_paren +=1; }
@@ -616,30 +696,38 @@ fn split_list(delimiter:TokenType, tokens:&[Token<TokenType>]) -> Vec<Vec<Token<
         param.clear();
     }
 
-    list
+    let valid =if list.len() == 0{
+        num_delimiters == 0
+    }else{
+        num_delimiters+1 == list.len()
+    };
+
+    if valid { Some(list) }
+    else { None }
 }
 
-fn parse_block(parser:&mut Parser<TokenType, Token<TokenType>>, semicolon_terminated:bool) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn parse_block(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let block_begin = parser.peek();
     match parser.slice_block(TokenType::LBracket, TokenType::RBracket){
-        Ok(tokens) => {
+        Some(tokens) => {
             let ast = AST{ kind: block_begin.unwrap().clone(), children: parse(tokens, semicolon_terminated)? };
 
             parser.skip(tokens.len()+2);
 
-            Ok(ast)
+            Some(ast)
         },
 
-        Err(e) => {
+        None => {
+            report("Expected a block: '{...}'", parser.peek().unwrap().location.clone());
             parser.skip(1);
-            Err(vec![e])
+            None
         }
     }
 }
 
 
 
-fn parse_expression(tokens: &[Token<TokenType>]) -> Option<Result<AST<Expr<TokenType>>, Vec<ParsingError<TokenType>>>>{
+fn parse_expression(tokens: &[Token<TokenType>]) -> Option<AST<Expr<TokenType>>>{
     let mut parser = ExpressionParser::new();
     
 
@@ -675,46 +763,44 @@ fn parse_expression(tokens: &[Token<TokenType>]) -> Option<Result<AST<Expr<Token
     parser.parse(tokens)
 }
 
-fn normalize_expression(expr:AST<Expr<TokenType>>) -> Result<AST<Token<TokenType>>, Vec<ParsingError<TokenType>>>{
+fn illegal_in_expression(kind:TokenType) -> bool{
+    kind == TokenType::Def
+    || kind == TokenType::While
+    || kind == TokenType::If
+    || kind == TokenType::Subcanvas
+    || kind == TokenType::Travel
+    || kind == TokenType::Colon
+    || kind == TokenType::Eq
+}
+
+fn normalize_expression(expr:AST<Expr<TokenType>>) -> Option<AST<Token<TokenType>>>{
     let mut normalized:AST<Token<TokenType>>;
 
     normalized = match expr.kind{
         Expr::Operator(t) => {
-            if t.kind == TokenType::Def
-            || t.kind == TokenType::While
-            || t.kind == TokenType::If
-            || t.kind == TokenType::Subcanvas
-            || t.kind == TokenType::Travel
-            || t.kind == TokenType::Colon
-            || t.kind == TokenType::Eq{
-                return Err(vec![ParsingError::UnparsedSequence(t.location.clone())]);
+            if illegal_in_expression(t.kind){
+                report(&format!("Illegal token in expression: '{}'", t.literal), t.location);
+                return None;
             }
             AST{kind: t, children: vec![]}
         },
         Expr::Operand(t) => {
-            if t.kind == TokenType::Def
-            || t.kind == TokenType::While
-            || t.kind == TokenType::If
-            || t.kind == TokenType::Subcanvas
-            || t.kind == TokenType::Travel
-            || t.kind == TokenType::Colon
-            || t.kind == TokenType::Eq{
-                return Err(vec![ParsingError::UnparsedSequence(t.location.clone())]);
+            if illegal_in_expression(t.kind){
+                report(&format!("Illegal token in expression: '{}'", t.literal), t.location);
+                return None;
             }
             AST{kind: t, children: vec![]}
         },
         Expr::Unknown(tokens) => {
             let forest = parse(tokens, false)?;
-            if forest.len() > 1 { return Err(vec![ParsingError::UnparsedSequence(tokens[0].location.clone())]) }
+            if forest.len() > 1 {
+                report("Invalid expression", forest[0].kind.location.clone());
+                return None;
+            }
 
-            if forest[0].kind.kind == TokenType::Def
-            || forest[0].kind.kind == TokenType::While
-            || forest[0].kind.kind == TokenType::If
-            || forest[0].kind.kind == TokenType::Subcanvas
-            || forest[0].kind.kind == TokenType::Travel
-            || forest[0].kind.kind == TokenType::Colon
-            || forest[0].kind.kind == TokenType::Eq{
-                return Err(vec![ParsingError::UnparsedSequence(tokens[0].location.clone())]);
+            if illegal_in_expression(forest[0].kind.kind){
+                report(&format!("Illegal token in expression: '{}'", forest[0].kind.literal), forest[0].kind.location.clone());
+                return None;
             }
 
             forest[0].clone()
@@ -726,7 +812,7 @@ fn normalize_expression(expr:AST<Expr<TokenType>>) -> Result<AST<Token<TokenType
         normalized.children.push(child);
     }
 
-    Ok(normalized)
+    Some(normalized)
 
 
 }
