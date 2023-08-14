@@ -29,6 +29,15 @@ fn type_binding_regex() -> Regex<TokenType>{
         .then(RegexElement::Item(TokenType::Ident, Quantifier::Exactly(1)))
 }
 
+fn return_regex() -> Regex<TokenType>{
+    Regex::new()
+        .then(RegexElement::Item(TokenType::Return, Quantifier::Exactly(1)))
+        .then(RegexElement::NoneOf(vec![
+            RegexElement::Item(TokenType::SemiColon, Quantifier::Exactly(1))
+        ], Quantifier::ZeroOrMany))
+        .then(RegexElement::Item(TokenType::SemiColon, Quantifier::Exactly(1)))
+}
+
 
 
 pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Vec<AST<Token<TokenType>>>>{
@@ -52,6 +61,12 @@ pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Ve
             
         }else if parser.on_regex(&type_binding_regex()){
             match parse_type_binding(&mut parser, semicolon_terminated){
+                Some(ast) => forest.push(ast),
+                None => sucess = false
+            }
+
+        }else if parser.on_regex(&return_regex()){
+            match parse_return(&mut parser){
                 Some(ast) => forest.push(ast),
                 None => sucess = false
             }
@@ -229,6 +244,38 @@ fn parse_inferred_var_assign(parser:&mut Parser<TokenType>) -> Option<AST<Token<
             None
         }
     }
+}
+
+fn parse_return(parser:&mut Parser<TokenType>) -> Option<AST<Token<TokenType>>>{
+    match parser.slice_regex(&return_regex()){
+        Some(tokens) => {
+            parser.skip(tokens.len());
+            let expr = tokens.get(1..tokens.len()-1).unwrap_or_default();
+
+            if expr.is_empty(){
+                Some(AST { kind: tokens[0].clone(), children: vec![] })
+            }else{
+                match parse_expression(expr){
+                    Some(expr) => {
+                        Some(AST { kind: tokens[0].clone(), children: vec![normalize_expression(expr)?] })
+                    },
+
+                    None => {
+                        report("Could not parse expression", tokens[0].location.clone());
+                        None
+                    }
+                }
+            }
+        },
+
+        None => {
+            report("Expected sequence 'return [<expr>];'", parser.peek().unwrap().location.clone());
+            parser.skip(1);
+            None
+        }
+    }
+
+    
 }
 
 fn parse_type_binding(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>> {
