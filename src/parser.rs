@@ -1,4 +1,4 @@
-use neoglot_lib::{lexer::Token, parser::{Parser, AST, expression::{ExpressionParser, Expr}, expect}, regex::{Regex, RegexElement, Quantifier}, report};
+use neoglot_lib::{lexer::Token, parser::{Parser, AST, expression::{ExpressionParser, Expr, Operator, Position}, expect}, regex::{Regex, RegexElement, Quantifier}, report};
 
 use crate::TokenType;
 
@@ -279,17 +279,26 @@ fn parse_if(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<
                 match normalize_expression(raw_expr){
                     Some(expr) => {
 
-                        if !expect(parser.pop().and_then(|e| Some(e.kind)), TokenType::LBracket){
+                        if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::LBracket){
                             report("Expected block '{...}'", r_paren.location.clone());
+                            parser.skip(1);
                             return None;
                         }
 
                         let block = parse_block(parser, semicolon_terminated)?;
 
-                        Some(AST { kind: if_tok, children: vec![
-                            expr,
-                            block
-                        ] })
+                        if expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::Else){
+                            Some(AST { kind: if_tok, children: vec![
+                                expr,
+                                block,
+                                parse_else(parser, semicolon_terminated)?
+                            ] })
+                        }else{
+                            Some(AST { kind: if_tok, children: vec![
+                                expr,
+                                block
+                            ] })
+                        }
                     },
 
                     None => {
@@ -301,7 +310,6 @@ fn parse_if(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<
                 
             }else{
                 report("Could not parse expression", if_tok.location.clone());
-                parser.skip(1);
                 None
             }
 
@@ -311,6 +319,22 @@ fn parse_if(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<
             report("Expected sequence '(<expr>)'", if_tok.location.clone());
             None
         }
+    }
+}
+
+fn parse_else(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
+    let else_tok = parser.pop().unwrap().clone();
+    if let Some(token) = parser.peek(){
+        if token.kind == TokenType::If{
+            Some(AST{ kind: else_tok.clone(), children: vec![parse_if(parser, semicolon_terminated)?] })
+        }else{
+            Some(AST{ kind: else_tok.clone(), children: vec![parse_block(parser, semicolon_terminated)?] })
+        }
+
+    }else{
+        report("Expected block '{...} or 'if' structure", else_tok.location.clone());
+        parser.skip(1);
+        None
     }
 }
 
@@ -347,7 +371,6 @@ fn parse_while(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Opti
                 
             }else{
                 report("Could not parse expression", while_tok.location.clone());
-                parser.skip(1);
                 None
             }
 
@@ -440,7 +463,6 @@ fn parse_travel(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Opt
 
     if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::LBracket){
         report("Expected block '{...}'", r_paren.location.clone());
-        parser.skip(1);
         return None;
     }
 
@@ -492,7 +514,6 @@ fn parse_subcanvas(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> 
 
             if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::LBracket){
                 report("Expected block '{...}'", r_paren.location.clone());
-                parser.skip(1);
                 return None;
             }
 
@@ -731,26 +752,26 @@ fn parse_expression(tokens: &[Token<TokenType>]) -> Option<AST<Expr<TokenType>>>
     let mut parser = ExpressionParser::new();
     
 
-    parser.add_operator(TokenType::Not, 1);
-
-    parser.add_operator(TokenType::DoubleEq, 2);
-    parser.add_operator(TokenType::NotEq, 2);
     
-    parser.add_operator(TokenType::GT, 3);
-    parser.add_operator(TokenType::LT, 3);
-    parser.add_operator(TokenType::GTEq, 3);
-    parser.add_operator(TokenType::LTEq, 3);
-
+    parser.add_operator(Operator{kind: TokenType::DoubleEq, position: Position::Infix}, 1);
+    parser.add_operator(Operator{kind: TokenType::NotEq, position: Position::Infix}, 1);
+    
+    parser.add_operator(Operator{kind: TokenType::GT, position: Position::Infix}, 2);
+    parser.add_operator(Operator{kind: TokenType::LT, position: Position::Infix}, 2);
+    parser.add_operator(Operator{kind: TokenType::GTEq, position: Position::Infix}, 2);
+    parser.add_operator(Operator{kind: TokenType::LTEq, position: Position::Infix}, 2);
+    
+    parser.add_operator(Operator{kind: TokenType::Not, position: Position::Prefix}, 3);
 
     
 
-    parser.add_operator(TokenType::Plus, 4);
-    parser.add_operator(TokenType::Minus, 4);
+    parser.add_operator(Operator{kind: TokenType::Plus, position: Position::Infix}, 4);
+    parser.add_operator(Operator{kind: TokenType::Minus, position: Position::Infix}, 4);
     
-    parser.add_operator(TokenType::Mul, 5);
-    parser.add_operator(TokenType::Div, 5);
+    parser.add_operator(Operator{kind: TokenType::Mul, position: Position::Infix}, 5);
+    parser.add_operator(Operator{kind: TokenType::Div, position: Position::Infix}, 5);
 
-    parser.add_operator(TokenType::Mod, 6);
+    parser.add_operator(Operator{kind: TokenType::Mod, position: Position::Infix}, 6);
     
 
 

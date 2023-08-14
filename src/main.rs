@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use neoglot_lib::{regex::*, lexer::*, report};
+use neoglot_lib::{regex::*, lexer::*};
 
 mod parser;
 
