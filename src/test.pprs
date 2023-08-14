@@ -1,2 +1,3 @@
-travel(a, b){}
-do();
+def test(){
+    return;
+}

@@ -15,7 +15,7 @@ pub enum TokenType{
 
     If, Else, While,
     Travel, Subcanvas,
-    Def,
+    Def, Return,
 
     Plus, Minus, Mul,
     Div, Mod,
@@ -111,6 +111,14 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
         .then(RegexElement::Item('e', Quantifier::Exactly(1)))
         .then(RegexElement::Item('f', Quantifier::Exactly(1)));
 
+    let return_regex = Regex::new()
+        .then(RegexElement::Item('r', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('e', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('t', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('u', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('r', Quantifier::Exactly(1)))
+        .then(RegexElement::Item('n', Quantifier::Exactly(1)));
+
     let bool_regex = Regex::new()
         .then(RegexElement::AnyOf(vec![
             RegexElement::Group(vec![
@@ -149,6 +157,7 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(travel_regex, TokenType::Travel));
     lexer.register(LexerNode::new(subcanvas_regex, TokenType::Subcanvas));
     lexer.register(LexerNode::new(def_regex, TokenType::Def));
+    lexer.register(LexerNode::new(return_regex, TokenType::Return));
 
     lexer.register(LexerNode::new(bool_regex, TokenType::Bool));
     lexer.register(LexerNode::new(float_regex, TokenType::Float));
