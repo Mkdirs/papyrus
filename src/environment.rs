@@ -1,6 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fmt::{Display, Formatter}};
-
-use crate::TokenType;
+use std::{collections::{HashMap, HashSet}, fmt::Display};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Type{

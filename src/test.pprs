@@ -3,7 +3,6 @@ create_canvas(100, 100);
 subcanvas(0, 0, 10, 10){
     
 }
-
-def put(a:int, b:int, c:color){}
+//def put(a:int, b:int, c:color){}
 
 save_canvas();

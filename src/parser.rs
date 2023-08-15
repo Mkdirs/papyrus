@@ -47,6 +47,11 @@ pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Ve
     let mut parser:Parser<TokenType> = Parser::new(tokens);
 
     while !parser.finished(){
+        if parser.on_token(TokenType::SingleComment){
+            parser.skip(1);
+            continue;
+        }
+
         if parser.on_regex(&typed_var_assign_regex()){
             match parse_typed_var_assign(&mut parser){
                 Some(ast) => forest.push(ast),

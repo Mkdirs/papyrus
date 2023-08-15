@@ -29,7 +29,9 @@ pub enum TokenType{
     And, Or,
     DoubleEq, GT, LT,
     Not, NotEq, GTEq,
-    LTEq
+    LTEq,
+
+    SingleComment
 }
 
 impl Symbol for TokenType{}
@@ -154,6 +156,11 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
         .then(RegexElement::Item('!', Quantifier::Exactly(1)))
         .then(RegexElement::Item('=', Quantifier::Exactly(1)));
 
+    let sigle_comment_regex = Regex::new()
+        .then(RegexElement::Item('/', Quantifier::Exactly(2)))
+        .then(RegexElement::NoneOf(vec![
+            RegexElement::Item('\n', Quantifier::Exactly(1))
+        ], Quantifier::ZeroOrMany));
 
 
     lexer.register(LexerNode::new(if_regex, TokenType::If));
@@ -170,6 +177,10 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(hex_regex, TokenType::Hex));
 
     lexer.register(LexerNode::new(ident_regex, TokenType::Ident));
+
+
+    lexer.register(LexerNode::new(sigle_comment_regex, TokenType::SingleComment));
+
 
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('(', Quantifier::Exactly(1))), TokenType::LParen));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item(')', Quantifier::Exactly(1))), TokenType::RParen));
