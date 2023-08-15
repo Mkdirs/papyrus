@@ -1,6 +1,10 @@
+use environment::{Environment, FuncSign};
 use neoglot_lib::{regex::*, lexer::*};
+use validator::verify;
 
 mod parser;
+mod validator;
+mod environment;
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType{
@@ -22,6 +26,7 @@ pub enum TokenType{
 
     Eq,
 
+    And, Or,
     DoubleEq, GT, LT,
     Not, NotEq, GTEq,
     LTEq
@@ -182,6 +187,10 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('/', Quantifier::Exactly(1))), TokenType::Div));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('%', Quantifier::Exactly(1))), TokenType::Mod));
 
+
+    lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('&', Quantifier::Exactly(2))), TokenType::And));
+    lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('|', Quantifier::Exactly(2))), TokenType::Or));
+
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('=', Quantifier::Exactly(2))), TokenType::DoubleEq));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('=', Quantifier::Exactly(1))), TokenType::Eq));
 
@@ -209,9 +218,8 @@ fn test_parse(content:String, path: &str){
         LexingResult::Ok(tokens) => {
             match parser::parse(&tokens, true){
                 Some(frst) => {
-                    for ast in frst{
-                        println!("{ast:#?}");
-                    }
+                    let mut env = Environment::default();
+                    verify(&frst, &mut env);
                 },
 
                 None => {
