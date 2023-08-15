@@ -677,6 +677,7 @@ fn parse_ident(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Opti
     
     match parser.slice_block(TokenType::LParen, TokenType::RParen){
         Some(tokens) => {
+            let mut args_ast = AST{kind: parser.peek().unwrap().clone(), children: vec![]};
             parser.skip(tokens.len()+2);
 
             let mut success = true;
@@ -690,7 +691,7 @@ fn parse_ident(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Opti
             for arg in args.unwrap_or_default(){
                 if let Some(raw_expr) = parse_expression(&arg){
                     match normalize_expression(raw_expr){
-                        Some(expr) => ident_ast.children.push(expr),
+                        Some(expr) => args_ast.children.push(expr),
                         None => {
                             success = false;
                         }
@@ -701,6 +702,8 @@ fn parse_ident(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Opti
                     success = false;
                 }
             }
+
+            ident_ast.children.push(args_ast);
 
             if semicolon_terminated{
                 if expect(parser.peek().and_then(|t| Some(t.kind)), TokenType::SemiColon){
@@ -802,23 +805,26 @@ fn parse_expression(tokens: &[Token<TokenType>]) -> Option<AST<Expr<TokenType>>>
     
     parser.add_operator(Operator{kind: TokenType::DoubleEq, position: Position::Infix}, 1);
     parser.add_operator(Operator{kind: TokenType::NotEq, position: Position::Infix}, 1);
+
+    parser.add_operator(Operator { kind: TokenType::Or, position: Position::Infix }, 2);
+    parser.add_operator(Operator { kind: TokenType::And, position: Position::Infix }, 3);
     
-    parser.add_operator(Operator{kind: TokenType::GT, position: Position::Infix}, 2);
-    parser.add_operator(Operator{kind: TokenType::LT, position: Position::Infix}, 2);
-    parser.add_operator(Operator{kind: TokenType::GTEq, position: Position::Infix}, 2);
-    parser.add_operator(Operator{kind: TokenType::LTEq, position: Position::Infix}, 2);
+    parser.add_operator(Operator{kind: TokenType::GT, position: Position::Infix}, 4);
+    parser.add_operator(Operator{kind: TokenType::LT, position: Position::Infix}, 4);
+    parser.add_operator(Operator{kind: TokenType::GTEq, position: Position::Infix}, 4);
+    parser.add_operator(Operator{kind: TokenType::LTEq, position: Position::Infix}, 4);
     
-    parser.add_operator(Operator{kind: TokenType::Not, position: Position::Prefix}, 3);
+    parser.add_operator(Operator{kind: TokenType::Not, position: Position::Prefix}, 5);
 
     
 
-    parser.add_operator(Operator{kind: TokenType::Plus, position: Position::Infix}, 4);
-    parser.add_operator(Operator{kind: TokenType::Minus, position: Position::Infix}, 4);
+    parser.add_operator(Operator{kind: TokenType::Plus, position: Position::Infix}, 6);
+    parser.add_operator(Operator{kind: TokenType::Minus, position: Position::Infix}, 6);
     
-    parser.add_operator(Operator{kind: TokenType::Mul, position: Position::Infix}, 5);
-    parser.add_operator(Operator{kind: TokenType::Div, position: Position::Infix}, 5);
+    parser.add_operator(Operator{kind: TokenType::Mul, position: Position::Infix}, 7);
+    parser.add_operator(Operator{kind: TokenType::Div, position: Position::Infix}, 7);
 
-    parser.add_operator(Operator{kind: TokenType::Mod, position: Position::Infix}, 6);
+    parser.add_operator(Operator{kind: TokenType::Mod, position: Position::Infix}, 8);
     
 
 
