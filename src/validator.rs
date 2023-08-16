@@ -281,10 +281,10 @@ fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
 
     }else{ Some(Type::Void) };
 
-    let mut block_env = env.clone();
+    let mut block_env = Environment::default();
 
     for param in params{
-        if !verify_binding(param, &block_env){ valid = false; }
+        if !verify_binding(param, &env){ valid = false; }
         else{
             let t = param.children[1].kind.literal.clone();
             block_env.push_var(&param.children[0].kind.literal, get_type(t).unwrap());
@@ -292,7 +292,7 @@ fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
     }
 
     block_env.push_var("?exit_type", expected_return_type.unwrap_or(Type::Void));
-    block_env.scope_level += 1;
+    block_env.scope_level = env.scope_level+1;
 
     if !verify(&block.children, &mut block_env){ valid = false; }
 
