@@ -1,8 +1,4 @@
-create_canvas(100, 100);
-
-subcanvas(0, 0, 10, 10){
-    
+a:int = 0;
+def test(){
+    a = 5.0;
 }
-//def put(a:int, b:int, c:color){}
-
-save_canvas();
