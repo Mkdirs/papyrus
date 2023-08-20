@@ -5,6 +5,7 @@ use validator::verify;
 mod parser;
 mod validator;
 mod environment;
+mod ir;
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType{
@@ -44,7 +45,6 @@ fn main() {
 fn init_lexer(lexer:&mut Lexer<TokenType>){
     let ident_regex = Regex::new()
         .then(RegexElement::AnyOf(vec![
-            RegexElement::Item('_', Quantifier::Exactly(1)),
             RegexElement::Set('a', 'z', Quantifier::Exactly(1)),
             RegexElement::Set('A', 'Z', Quantifier::Exactly(1))
         ]))
@@ -230,7 +230,11 @@ fn test_parse(content:String, path: &str){
             match parser::parse(&tokens, true){
                 Some(frst) => {
                     let mut env = Environment::default();
-                    verify(&frst, &mut env);
+                    if verify(&frst, &mut env){
+                        for instr in ir::parse(frst){
+                            println!("{instr:?}")
+                        }
+                    }
                 },
 
                 None => {
