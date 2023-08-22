@@ -109,6 +109,8 @@ pub fn parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
             let root_scope = ctx.create_temp_label("root_scope");
             instructions.append(&mut parse_if(tree, ctx, true, root_scope.clone()));
             instructions.push(Instruction::Label(root_scope));
+        }else if tree.kind.kind == TokenType::Subcanvas{
+            instructions.append(&mut parse_subcanvas(tree, ctx));
         }
     }
 
@@ -503,6 +505,56 @@ fn parse_if(if_tree: &AST, ctx: &mut Context, root:bool, root_scope_label:String
         }
     };
 
+
+    instructions
+}
+
+fn parse_subcanvas(subcanvas_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
+    let mut instructions = vec![];
+
+    let ofst_x = &subcanvas_tree.children[0];
+    let ofst_y = &subcanvas_tree.children[1];
+
+    let width = &subcanvas_tree.children[2];
+    let height = &subcanvas_tree.children[3];
+
+    let block = &subcanvas_tree.children[4];
+
+    let x_param = if ofst_x.children.is_empty(){
+        to_param(&ofst_x.kind, ctx)
+    }else{
+        let reg = ctx.create_temp_register();
+        instructions.append(&mut expand_expr(ofst_x, ctx, reg.clone()));
+        Param::Register(reg)
+    };
+
+    let y_param = if ofst_y.children.is_empty(){
+        to_param(&ofst_y.kind, ctx)
+    }else{
+        let reg = ctx.create_temp_register();
+        instructions.append(&mut expand_expr(ofst_y, ctx, reg.clone()));
+        Param::Register(reg)
+    };
+
+    let width_param = if width.children.is_empty(){
+        to_param(&width.kind, ctx)
+    }else{
+        let reg = ctx.create_temp_register();
+        instructions.append(&mut expand_expr(width, ctx, reg.clone()));
+        Param::Register(reg)
+    };
+
+    let height_param = if height.children.is_empty(){
+        to_param(&height.kind, ctx)
+    }else{
+        let reg = ctx.create_temp_register();
+        instructions.append(&mut expand_expr(height, ctx, reg.clone()));
+        Param::Register(reg)
+    };
+
+    instructions.push(Instruction::Push(width_param, height_param));
+    instructions.append(&mut parse(&block.children, ctx));
+    instructions.push(Instruction::Merge(x_param, y_param));
 
     instructions
 }

@@ -1,16 +1,11 @@
-if(true){
-    create_canvas(10, 10);
-}else if(false){
-    if(true){
-        //foo
-    }else{
-        //bar
-    }
-    create_canvas(5, 5);
-}else if(2 == 0){
-    create_canvas(100, 100);
-}else{
-    put(0, 0, #0000ff);
+create_canvas(100, 100);
+fill(#000000);
+
+cx:int = 100/2 - 25;
+cy:int = 100/2 - 25;
+
+subcanvas(cx, cy, 25, 25){
+    fill(#ffffff);
 }
 
 save_canvas();
