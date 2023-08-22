@@ -839,7 +839,9 @@ fn parse_expression(tokens: &[Token<TokenType>]) -> Option<AST<Expr<TokenType>>>
 
     parser.set_high_priority_group(TokenType::LParen, TokenType::RParen);
 
-    parser.parse(tokens)
+    parser.parse(tokens, &|parser, tokens| {
+        tokens[0].kind == TokenType:: Ident && parser.is_in_group(tokens.get(1..).unwrap_or_default())
+    })
 }
 
 fn illegal_in_expression(kind:TokenType) -> bool{

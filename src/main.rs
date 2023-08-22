@@ -1,4 +1,5 @@
-use environment::{Environment, FuncSign};
+use environment::Environment;
+use ir::Context;
 use neoglot_lib::{regex::*, lexer::*};
 use validator::verify;
 
@@ -231,7 +232,7 @@ fn test_parse(content:String, path: &str){
                 Some(frst) => {
                     let mut env = Environment::default();
                     if verify(&frst, &mut env){
-                        for instr in ir::parse(frst){
+                        for instr in ir::parse(&frst, &mut Context::default()){
                             println!("{instr:?}")
                         }
                     }
