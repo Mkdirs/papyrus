@@ -614,8 +614,8 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
                 match (left, right){
                     (Type::Int, Type::Int) => Some(Type::Bool),
                     (Type::Float, Type:: Float) => Some(Type::Bool),
-                    (Type::Int, Type::Float) => Some(Type::Bool),
-                    (Type::Float, Type::Int) => Some(Type::Bool),
+                    /*(Type::Int, Type::Float) => Some(Type::Bool),
+                    (Type::Float, Type::Int) => Some(Type::Bool),*/
 
                     _ => {
                         report(&format!("Operator '>' is not defined for types '{:?}' and '{:?}'", left, right), expr.kind.location.clone());
@@ -631,8 +631,8 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
                 match (left, right){
                     (Type::Int, Type::Int) => Some(Type::Bool),
                     (Type::Float, Type:: Float) => Some(Type::Bool),
-                    (Type::Int, Type::Float) => Some(Type::Bool),
-                    (Type::Float, Type::Int) => Some(Type::Bool),
+                    /*(Type::Int, Type::Float) => Some(Type::Bool),
+                    (Type::Float, Type::Int) => Some(Type::Bool),*/
 
                     _ => {
                         report(&format!("Operator '<' is not defined for types '{:?}' and '{:?}'", left, right), expr.kind.location.clone());
@@ -648,8 +648,8 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
                 match (left, right){
                     (Type::Int, Type::Int) => Some(Type::Bool),
                     (Type::Float, Type:: Float) => Some(Type::Bool),
-                    (Type::Int, Type::Float) => Some(Type::Bool),
-                    (Type::Float, Type::Int) => Some(Type::Bool),
+                    /*(Type::Int, Type::Float) => Some(Type::Bool),
+                    (Type::Float, Type::Int) => Some(Type::Bool),*/
 
                     _ => {
                         report(&format!("Operator '>=' is not defined for types '{:?}' and '{:?}'", left, right), expr.kind.location.clone());
@@ -665,8 +665,8 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
                 match (left, right){
                     (Type::Int, Type::Int) => Some(Type::Bool),
                     (Type::Float, Type:: Float) => Some(Type::Bool),
-                    (Type::Int, Type::Float) => Some(Type::Bool),
-                    (Type::Float, Type::Int) => Some(Type::Bool),
+                    /*(Type::Int, Type::Float) => Some(Type::Bool),
+                    (Type::Float, Type::Int) => Some(Type::Bool),*/
 
                     _ => {
                         report(&format!("Operator '<=' is not defined for types '{:?}' and '{:?}'", left, right), expr.kind.location.clone());
