@@ -167,7 +167,7 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(if_regex, TokenType::If));
     lexer.register(LexerNode::new(else_regex, TokenType::Else));
     lexer.register(LexerNode::new(while_regex, TokenType::While));
-    lexer.register(LexerNode::new(travel_regex, TokenType::Travel));
+    //lexer.register(LexerNode::new(travel_regex, TokenType::Travel));
     lexer.register(LexerNode::new(subcanvas_regex, TokenType::Subcanvas));
     lexer.register(LexerNode::new(def_regex, TokenType::Def));
     lexer.register(LexerNode::new(return_regex, TokenType::Return));
