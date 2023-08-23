@@ -59,6 +59,16 @@ impl Default for Environment{
             name: String::from("fill"),
             params: vec![Type::Color]
         }, Type::Void);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("int"),
+            params: vec![Type::Float]
+        }, Type::Int);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("float"),
+            params: vec![Type::Int]
+        }, Type::Float);
         
         env
     }

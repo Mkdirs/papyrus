@@ -1,11 +1,3 @@
-create_canvas(100, 100);
-fill(#000000);
+a:float = 10+5-0.5*2.0;
 
-cx:int = 100/2 - 25;
-cy:int = 100/2 - 25;
-
-subcanvas(cx, cy, 25, 25){
-    fill(#ffffff);
-}
-
-save_canvas();
+b:float = float(1);
