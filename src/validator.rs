@@ -414,7 +414,7 @@ fn get_binding_type(binding_tree:&AST) -> Option<Type>{
     get_type(binding_tree.children[1].kind.literal.clone())
 }
 
-fn get_type(name: String) -> Option<Type>{
+pub fn get_type(name: String) -> Option<Type>{
     if &name == "int"{
         Some(Type::Int)
     }else if &name == "float"{
