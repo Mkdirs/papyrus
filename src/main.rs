@@ -50,7 +50,7 @@ fn main() {
     
     if !program.is_empty(){
         let mut vm = VM::new(program);
-        vm.run("main");
+        //vm.run("main");
         println!("{:#?}", vm.get_saved_canvas());
     }
 }
