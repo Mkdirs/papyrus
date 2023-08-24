@@ -21,6 +21,7 @@ pub enum Instruction{
     Sub(Param, Param, String),
     Mul(Param, Param, String),
     Div(Param, Param, String),
+    Mod(Param, Param, String),
 
     Addf(Param, Param, String),
     Subf(Param, Param, String),
@@ -370,6 +371,10 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Float
         }
         //instructions.push(Instruction::Div(args.0, args.1, args.2));
+
+    }else if expr.kind.kind == TokenType::Mod{
+        instructions.push(Instruction::Mod(args.0, args.1, args.2));
+        Type::Int
     
     }else if expr.kind.kind == TokenType::GT{
         instructions.push(Instruction::GT(args.0, args.1, args.2));
@@ -413,6 +418,7 @@ fn expand_expr(expr:&AST, ctx: &mut Context, return_reg: String) -> (Vec<Instruc
     || expr.kind.kind == TokenType::Minus
     || expr.kind.kind == TokenType::Mul
     || expr.kind.kind == TokenType::Div
+    || expr.kind.kind == TokenType::Mod
     || expr.kind.kind == TokenType::GT
     || expr.kind.kind == TokenType::LT
     || expr.kind.kind == TokenType::And
