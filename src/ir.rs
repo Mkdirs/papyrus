@@ -13,7 +13,7 @@ pub enum Param{
     Register(String)
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Instruction{
     Copy(Param, String),
     
@@ -32,9 +32,18 @@ pub enum Instruction{
     
     GT(Param, Param, String),
     LT(Param, Param, String),
+
+    GTf(Param, Param, String),
+    LTf(Param, Param, String),
+
     Eq(Param, Param, String),
+
     GE(Param, Param, String),
     LE(Param, Param, String),
+
+    GEf(Param, Param, String),
+    LEf(Param, Param, String),
+    
     NE(Param, Param, String),
     And(Param, Param, String),
     Or(Param, Param, String),
@@ -50,7 +59,7 @@ pub enum Instruction{
     Pop,
     Save,
 
-    JT(Param, String),
+    //JT(Param, String),
     JF(Param, String),
     
     Label(String),
@@ -67,7 +76,7 @@ pub struct Context{
     labels: Vec<String>,
     bindings: HashMap<String, Type>,
     func_returns: HashMap<String, Type>,
-    pub num_while_labels : u32
+    pub renamed_vars: HashMap<String, String>
 }
 
 impl Default for Context{
@@ -80,7 +89,7 @@ impl Default for Context{
                 ("float".to_string(), Type::Float),
                 ("int".to_string(), Type::Int)
             ]),
-            num_while_labels: u32::default()
+            renamed_vars: HashMap::default()
         }
     }
 }
@@ -94,13 +103,13 @@ impl Context{
     }
 
     pub fn create_temp_register(&mut self, _type:Option<Type>) -> String{
-        self.add_register(format!("r{}", self.registers.len()), _type);
+        self.add_register(format!("_r{}", self.registers.len()), _type);
         self.registers.last().unwrap().clone()
     }
 
     pub fn create_temp_label(&mut self, tag: &str) -> String{
         let n = self.labels.iter().filter(|e| e.starts_with(tag)).count();
-        self.labels.push(format!("{tag}{n}"));
+        self.labels.push(format!("_{tag}{n}"));
         self.labels.last().unwrap().clone()
     }
 
@@ -158,7 +167,13 @@ fn add_var_in_context(binding_tree: &AST, ctx: &mut Context){
 
 fn to_param(token: &Token<TokenType>, ctx: &Context) -> (Param, Type){
     if token.kind == TokenType::Ident{
-        (Param::Register(token.literal.clone()), ctx.bindings.get(&token.literal).unwrap().clone() )
+        let n = token.literal.clone();
+        let name = if ctx.renamed_vars.contains_key(&n){
+            ctx.renamed_vars.get(&n).unwrap().clone()
+        }else{
+            n
+        };
+        (Param::Register(name.clone()), ctx.bindings.get(&name).unwrap().clone() )
         //Param::Register(ctx.get_renamed_user_var(&token.literal).clone())
     }else if token.kind == TokenType::Int{
         (
@@ -275,7 +290,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Int
         
         }else if left_type == Type::Int && right_type == Type::Float{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.0, reg.clone()));
@@ -283,7 +298,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Float
         
         }else{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.1, reg.clone()));
@@ -303,7 +318,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Int
         
         }else if left_type == Type::Int && right_type == Type::Float{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.0, reg.clone()));
@@ -311,7 +326,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Float
         
         }else{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.1, reg.clone()));
@@ -330,7 +345,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Int
         
         }else if left_type == Type::Int && right_type == Type::Float{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.0, reg.clone()));
@@ -338,7 +353,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Float
         
         }else{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.1, reg.clone()));
@@ -357,7 +372,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Int
         
         }else if left_type == Type::Int && right_type == Type::Float{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.0, reg.clone()));
@@ -365,7 +380,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Float
         
         }else{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.1, reg.clone()));
@@ -384,7 +399,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Int
         
         }else if left_type == Type::Int && right_type == Type::Float{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.0, reg.clone()));
@@ -392,7 +407,7 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             Type::Float
         
         }else{
-            let reg = String::from("rt");
+            let reg = String::from("_rt");
             ctx.bindings.insert(reg.clone(), Type::Float);
 
             instructions.push(Instruction::Flt(args.1, reg.clone()));
@@ -405,12 +420,23 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
         Type::Int
     
     }else if expr.kind.kind == TokenType::GT{
-        instructions.push(Instruction::GT(args.0, args.1, args.2));
-        Type::Bool
+        if left_type == Type::Int && right_type == Type::Int{
+            instructions.push(Instruction::GT(args.0, args.1, args.2));
+            Type::Bool
+        }else{
+            instructions.push(Instruction::GTf(args.0, args.1, args.2));
+            Type::Bool
+        }
+        
     
     }else if expr.kind.kind == TokenType::LT{
-        instructions.push(Instruction::LT(args.0, args.1, args.2));
-        Type::Bool
+        if left_type == Type::Int && right_type == Type::Int{
+            instructions.push(Instruction::LT(args.0, args.1, args.2));
+            Type::Bool
+        }else{
+            instructions.push(Instruction::LTf(args.0, args.1, args.2));
+            Type::Bool
+        }
     
     }else if expr.kind.kind == TokenType::And{
         instructions.push(Instruction::And(args.0, args.1, args.2));
@@ -425,12 +451,22 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
         Type::Bool
     
     }else if expr.kind.kind == TokenType::GTEq{
-        instructions.push(Instruction::GE(args.0, args.1, args.2));
-        Type::Bool
+        if left_type == Type::Int && right_type == Type::Int{
+            instructions.push(Instruction::GE(args.0, args.1, args.2));
+            Type::Bool
+        }else{
+            instructions.push(Instruction::GEf(args.0, args.1, args.2));
+            Type::Bool
+        }
     
     }else if expr.kind.kind == TokenType::LTEq{
-        instructions.push(Instruction::LE(args.0, args.1, args.2));
-        Type::Bool
+        if left_type == Type::Int && right_type == Type::Int{
+            instructions.push(Instruction::LE(args.0, args.1, args.2));
+            Type::Bool
+        }else{
+            instructions.push(Instruction::LEf(args.0, args.1, args.2));
+            Type::Bool
+        }
    
     }else if expr.kind.kind == TokenType::NotEq{
         instructions.push(Instruction::NE(args.0, args.1, args.2));
@@ -483,7 +519,7 @@ fn expand_expr(expr:&AST, ctx: &mut Context, return_reg: String) -> (Vec<Instruc
         //let reg = ctx.get_unique_var_name();
         //ctx.num_vars += 1;
 
-        instructions.push(Instruction::Copy(Param::Register("rt".to_string()), return_reg));
+        instructions.push(Instruction::Copy(Param::Register("_rt".to_string()), return_reg));
 
 
         return (instructions, ctx.func_returns.get(&expr.kind.literal).unwrap_or(&Type::Void).clone());
@@ -505,9 +541,15 @@ fn parse_assign(assign_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
     let expr = &assign_tree.children[1];
     let mut instructions = vec![];
 
-    if !ctx.registers.contains(&name){
+    let normalized_name = if !ctx.renamed_vars.contains_key(&name){
+        let r = ctx.create_temp_register(None);
+        ctx.renamed_vars.insert(name, r.clone());
+        r
+    }else{ ctx.renamed_vars.get(&name).unwrap().clone() };
+
+    /*if !ctx.registers.contains(&name){
         ctx.add_register(name.clone(), None);
-    }
+    }*/
     
     /*let normalized_name = if !ctx.renamed_user_vars.contains_key(&name){
         ctx.add_user_var(name.clone());
@@ -517,8 +559,8 @@ fn parse_assign(assign_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
     };*/
 
     if !expr.children.is_empty(){
-        let (mut instr, t) = expand_expr(expr, ctx, name.clone());
-        ctx.bindings.insert(name, t);
+        let (mut instr, t) = expand_expr(expr, ctx, normalized_name.clone());
+        ctx.bindings.insert(normalized_name, t);
         instructions.append(&mut instr);
 
         /*if expr.kind.kind == TokenType::Ident{
@@ -555,8 +597,8 @@ fn parse_assign(assign_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
         };*/
 
         let (param, t) = to_param(&expr.kind, ctx);
-        ctx.bindings.insert(name.clone(), t);
-        instructions.push(Instruction::Copy(param, name));
+        ctx.bindings.insert(normalized_name.clone(), t);
+        instructions.push(Instruction::Copy(param, normalized_name));
     }
 
     instructions
@@ -579,7 +621,10 @@ fn parse_def(def_tree: &AST, parent:&mut Context) -> Vec<Instruction>{
     instructions.push(Instruction::Label(name));
 
     for (i, param) in func_tree.children.iter().enumerate(){
-        add_var_in_context(param, &mut ctx);
+        let r = format!("p{i}");
+        ctx.add_register(r.clone(), get_type(param.children[1].kind.literal.clone()));
+        ctx.renamed_vars.insert(param.children[0].kind.literal.clone(), r);
+        //add_var_in_context(param, &mut ctx);
         //rename_var(param, format!("p{i}"), &mut ctx);
     }
 
@@ -596,14 +641,14 @@ fn parse_return(return_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
 
     if !expr.children.is_empty(){
         let (instr, t) = expand_expr(expr, ctx, "rt".to_string());
-        ctx.bindings.insert("rt".to_string(), t);
+        ctx.bindings.insert("_rt".to_string(), t);
         
         instr
     }else{
         let (p, t) = to_param(&expr.kind, ctx);
-        ctx.bindings.insert("rt".to_string(), t);
+        ctx.bindings.insert("_rt".to_string(), t);
 
-        vec![Instruction::Copy(p, "rt".to_string())]
+        vec![Instruction::Copy(p, "_rt".to_string())]
     }
 }
 fn parse_func_call(func_call_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
@@ -639,13 +684,13 @@ fn parse_func_call(func_call_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
         instructions.push(Instruction::Save);
         instructions.push(Instruction::Pop);
     }else if &name == "float"{
-        let reg = String::from("rt");
+        let reg = String::from("_rt");
         ctx.bindings.insert(reg.clone(), Type::Float);
 
         instructions.push(Instruction::Flt(params[0].clone(), reg));
     
     }else if &name == "int"{
-        let reg = String::from("rt");
+        let reg = String::from("_rt");
         ctx.bindings.insert(reg.clone(), Type::Float);
 
         instructions.push(Instruction::Int(params[0].clone(), reg));
@@ -665,8 +710,7 @@ fn parse_while(while_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
 
     let while_start = ctx.create_temp_label("while");//ctx.get_unique_while_label();
     let mut instructions = vec![Instruction::Label(while_start.clone())];
-    let end_label = format!("end_{}", while_start);
-    ctx.num_while_labels += 1;
+    let end_label = format!("_end_{}", while_start);
 
 
     let param = if expr.children.is_empty(){
@@ -717,9 +761,9 @@ fn parse_if(if_tree: &AST, ctx: &mut Context, root_scope_label:String) -> Vec<In
         let else_tree = &if_tree.children[2];
         
         if else_tree.children[0].kind.kind == TokenType::If{
-            let n = ctx.labels.iter().filter(|e| e.starts_with("elif")).count();
+            let n = ctx.labels.iter().filter(|e| e.starts_with("_elif")).count();
 
-            let else_if_start = format!("elif{}", n);
+            let else_if_start = format!("_elif{}", n);
             instructions.push(Instruction::JF(param, else_if_start.clone()));
             instructions.append(&mut parse(&block.children, ctx));
             instructions.push(Instruction::Jump(root_scope_label.clone()));
