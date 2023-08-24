@@ -43,6 +43,11 @@ impl TokenKind for TokenType{}
 
 fn main() {
     let program = test_parse(include_str!("test.pprs").to_string(), "C:/Users/Utilisateur/papyrus/src/test.pprs");
+    
+    for instr in &program{
+        println!("{instr:?}");
+    }
+    
     if !program.is_empty(){
         let mut vm = VM::new(program);
         vm.run("main");

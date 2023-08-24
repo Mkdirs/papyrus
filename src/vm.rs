@@ -532,6 +532,26 @@ impl VM{
                 true
             },
 
+            Instruction::Neg(a, r) => {
+                let value = match a {
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
+                };
+
+                self.memory[0].set(&r, (-value) as u32);
+                true
+            },
+
+            Instruction::Negf(a, r) => {
+                let value = match a {
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
+                };
+
+                self.memory[0].set(&r, (-value).to_bits());
+                true
+            },
+
             Instruction::Not(a, r) => {
                 let value = match a {
                     Param::Value(v) => v != 0,
