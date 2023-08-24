@@ -22,11 +22,13 @@ pub enum Instruction{
     Mul(Param, Param, String),
     Div(Param, Param, String),
     Mod(Param, Param, String),
+    Pow(Param, Param, String),
 
     Addf(Param, Param, String),
     Subf(Param, Param, String),
     Mulf(Param, Param, String),
     Divf(Param, Param, String),
+    Powf(Param, Param, String),
     
     GT(Param, Param, String),
     LT(Param, Param, String),
@@ -372,6 +374,32 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
         }
         //instructions.push(Instruction::Div(args.0, args.1, args.2));
 
+    }else if expr.kind.kind == TokenType::Pow{
+        if left_type == Type::Float && right_type == Type::Float{
+            instructions.push(Instruction::Powf(args.0, args.1, args.2));
+            Type::Float
+        
+        }else if left_type == Type::Int && right_type ==Type::Int{
+            instructions.push(Instruction::Pow(args.0, args.1, args.2));
+            Type::Int
+        
+        }else if left_type == Type::Int && right_type == Type::Float{
+            let reg = String::from("rt");
+            ctx.bindings.insert(reg.clone(), Type::Float);
+
+            instructions.push(Instruction::Flt(args.0, reg.clone()));
+            instructions.push(Instruction::Powf(Param::Register(reg), args.1, args.2));
+            Type::Float
+        
+        }else{
+            let reg = String::from("rt");
+            ctx.bindings.insert(reg.clone(), Type::Float);
+
+            instructions.push(Instruction::Flt(args.1, reg.clone()));
+            instructions.push(Instruction::Powf(args.0, Param::Register(reg), args.2));
+            Type::Float
+        }
+
     }else if expr.kind.kind == TokenType::Mod{
         instructions.push(Instruction::Mod(args.0, args.1, args.2));
         Type::Int
@@ -419,6 +447,7 @@ fn expand_expr(expr:&AST, ctx: &mut Context, return_reg: String) -> (Vec<Instruc
     || expr.kind.kind == TokenType::Mul
     || expr.kind.kind == TokenType::Div
     || expr.kind.kind == TokenType::Mod
+    || expr.kind.kind == TokenType::Pow
     || expr.kind.kind == TokenType::GT
     || expr.kind.kind == TokenType::LT
     || expr.kind.kind == TokenType::And

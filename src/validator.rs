@@ -545,6 +545,24 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
                 }
             },
 
+            TokenType::Pow => {
+                let left = get_expr_return_type(&expr.children[0], env)?;
+                let right = get_expr_return_type(&expr.children[1], env)?;
+
+                match (left, right){
+                    (Type::Int, Type::Int) => Some(Type::Int),
+                    (Type::Float, Type::Float) => Some(Type::Float),
+
+                    (Type::Int, Type::Float) => Some(Type::Float),
+                    (Type::Float, Type::Int) => Some(Type::Float),
+
+                    _ => {
+                        report(&format!("Operator '%' is not defined for types '{:?}' and '{:?}'", left, right), expr.kind.location.clone());
+                        None
+                    }
+                }
+            },
+
             TokenType::DoubleEq => {
                 let left = get_expr_return_type(&expr.children[0], env)?;
                 let right = get_expr_return_type(&expr.children[1], env)?;
