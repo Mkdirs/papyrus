@@ -79,7 +79,8 @@ pub struct Context{
     labels: Vec<String>,
     bindings: HashMap<String, Type>,
     func_returns: HashMap<String, Type>,
-    pub renamed_vars: HashMap<String, String>
+    pub renamed_vars: HashMap<String, String>,
+    top_function: String
 }
 
 impl Default for Context{
@@ -92,7 +93,8 @@ impl Default for Context{
                 ("float".to_string(), Type::Float),
                 ("int".to_string(), Type::Int)
             ]),
-            renamed_vars: HashMap::default()
+            renamed_vars: HashMap::default(),
+            top_function: String::default()
         }
     }
 }
@@ -110,11 +112,34 @@ impl Context{
         self.registers.last().unwrap().clone()
     }
 
+    pub fn add_label(&mut self, name: &str){
+        if self.top_function.is_empty(){
+            let n = self.labels.iter().filter(|e| e.starts_with(name)).count();
+
+            if n == 0{
+                self.labels.push(name.to_string());
+            }else{
+                self.labels.push(format!("{name}{n}"));
+            }
+
+        }else{
+            let n = self.labels.iter().filter(|e| e.starts_with(&format!("{}_{name}", self.top_function))).count();
+
+            if n == 0{
+                self.labels.push(format!("{}_{name}", self.top_function));
+            }else{
+                self.labels.push(format!("{}_{name}{n}", self.top_function));
+            }
+        }
+    }
+
     pub fn create_temp_label(&mut self, tag: &str) -> String{
-        let n = self.labels.iter().filter(|e| e.starts_with(&format!("_{tag}"))).count();
-        self.labels.push(format!("_{tag}{n}"));
+        self.add_label(&format!("_{tag}"));
+        //let n = self.labels.iter().filter(|e| e.starts_with(&format!("_{tag}"))).count();
+        //self.labels.push(format!("_{tag}{n}"));
         self.labels.last().unwrap().clone()
     }
+
 
 
     /*pub fn get_unique_while_label(&self) -> String{
@@ -627,9 +652,11 @@ fn parse_def(def_tree: &AST, parent:&mut Context) -> Vec<Instruction>{
     }
 
     let mut ctx = Context::default();
+    ctx.top_function = func_tree.kind.literal.clone();
 
-    let name = func_tree.kind.literal.clone();
-    instructions.push(Instruction::Label(name));
+    parent.add_label(&func_tree.kind.literal);
+    //let name = func_tree.kind.literal.clone();
+    instructions.push(Instruction::Label(parent.labels.last().unwrap().clone()));
 
     for (i, param) in func_tree.children.iter().enumerate(){
         let r = format!("p{i}");
