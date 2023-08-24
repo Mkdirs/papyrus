@@ -1,5 +1,33 @@
+def circle(r:int, cw:int, ch:int){
+   x:int = 0;
+   y: int = 0;
+
+   while(y < ch){
+      while(x < cw){
+
+         dist:int = (x^2) + (y^2);
+
+         if (dist <= r^2) {
+            put(x, y, #ff0000);
+         }
+
+         x = x+1;
+      }
+      x = 0;
+      y = y+1;
+   }
+}
+
 
 def main(){
-   a:int = 10;
-   b:float = (-a) * 2.5;
+   create_canvas(100, 100);
+   fill(#ffffff);
+
+   radius:int = 20;
+
+   subcanvas(100/2-radius, 100/2-radius, radius, radius){
+      circle(radius, radius, radius);
+   }
+
+   save_canvas();
 }

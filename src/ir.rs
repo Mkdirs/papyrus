@@ -111,7 +111,7 @@ impl Context{
     }
 
     pub fn create_temp_label(&mut self, tag: &str) -> String{
-        let n = self.labels.iter().filter(|e| e.starts_with(tag)).count();
+        let n = self.labels.iter().filter(|e| e.starts_with(&format!("_{tag}"))).count();
         self.labels.push(format!("_{tag}{n}"));
         self.labels.last().unwrap().clone()
     }
