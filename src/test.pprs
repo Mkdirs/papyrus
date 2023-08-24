@@ -2,4 +2,4 @@ a:float = 10+5-0.5*2.0;
 
 b:float = float(1);
 
-c:int = 12 mod 4;
+c:float = 20^2.0;

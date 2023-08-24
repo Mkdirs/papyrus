@@ -830,6 +830,7 @@ fn parse_expression(tokens: &[Token<TokenType>]) -> Option<AST<Expr<TokenType>>>
     parser.add_operator(Operator{kind: TokenType::Div, position: Position::Infix}, 7);
 
     parser.add_operator(Operator{kind: TokenType::Mod, position: Position::Infix}, 8);
+    parser.add_operator(Operator{kind: TokenType::Pow, position: Position::Infix}, 8);
     
 
 

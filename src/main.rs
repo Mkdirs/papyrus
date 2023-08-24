@@ -24,7 +24,7 @@ pub enum TokenType{
     Def, Return,
 
     Plus, Minus, Mul,
-    Div, Mod,
+    Div, Mod, Pow,
 
     Eq,
 
@@ -198,6 +198,7 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('*', Quantifier::Exactly(1))), TokenType::Mul));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('/', Quantifier::Exactly(1))), TokenType::Div));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('%', Quantifier::Exactly(1))), TokenType::Mod));
+    lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('^', Quantifier::Exactly(1))), TokenType::Pow));
 
 
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('&', Quantifier::Exactly(2))), TokenType::And));
