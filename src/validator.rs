@@ -516,21 +516,36 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
             },
 
             TokenType::Minus => {
-                let left = get_expr_return_type(&expr.children[0], env)?;
-                let right = get_expr_return_type(&expr.children[1], env)?;
+                if expr.children.len() == 1{
 
-                match (left, right){
-                    (Type::Int, Type::Int) => Some(Type::Int),
-                    (Type::Float, Type:: Float) => Some(Type::Float),
+                    match get_expr_return_type(&expr.children[0], env)?{
+                        Type::Int => Some(Type::Int),
+                        Type::Float => Some(Type::Float),
 
-                    (Type::Int, Type::Float) => Some(Type::Float),
-                    (Type::Float, Type::Int) => Some(Type::Float),
+                        t => {
+                            report(&format!("Operator unary '-' is not defined for type '{:?}'", t), expr.kind.location.clone());
+                            None
+                        }
+                    }
 
-                    _ => {
-                        report(&format!("Operator '-' is not defined for types '{:?}' and '{:?}'", left, right), expr.kind.location.clone());
-                        None
+                }else{
+                    let left = get_expr_return_type(&expr.children[0], env)?;
+                    let right = get_expr_return_type(&expr.children[1], env)?;
+                    match (left, right){
+                        (Type::Int, Type::Int) => Some(Type::Int),
+                        (Type::Float, Type:: Float) => Some(Type::Float),
+    
+                        (Type::Int, Type::Float) => Some(Type::Float),
+                        (Type::Float, Type::Int) => Some(Type::Float),
+    
+                        _ => {
+                            report(&format!("Operator binary '-' is not defined for types '{:?}' and '{:?}'", left, right), expr.kind.location.clone());
+                            None
+                        }
                     }
                 }
+
+                
             },
 
             TokenType::Mul => {

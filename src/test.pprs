@@ -1,7 +1,5 @@
 
 def main(){
-   create_canvas(2, 2);
-   put(0,0, #ff0000);
-   put(1, 1, #ff0000);
-   save_canvas();
+   a:int = 10;
+   b:float = (-a) * 2.5;
 }

@@ -29,6 +29,9 @@ pub enum Instruction{
     Mulf(Param, Param, String),
     Divf(Param, Param, String),
     Powf(Param, Param, String),
+
+    Neg(Param, String),
+    Negf(Param, String),
     
     GT(Param, Param, String),
     LT(Param, Param, String),
@@ -476,43 +479,51 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
 
     (instructions, _type)
 }
+
+
+fn expand_unary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<Instruction>, Type){
+    let operand = &expr.children[0];
+    let mut instructions = vec![];
+    let _type:Type;
+
+    let args = if operand.children.is_empty(){
+        let p:Param;
+        (p, _type) = to_param(&operand.kind, ctx);
+
+        (p, return_reg)
+    }else{
+        let reg = ctx.create_temp_register(None);
+        let mut instr:Vec<Instruction>;
+        
+        (instr, _type) = expand_expr(operand, ctx, reg.clone());
+        ctx.bindings.insert(reg.clone(), _type);
+        instructions.append(&mut instr);
+        let p = Param::Register(reg);
+
+        (p, return_reg)
+    };
+
+    if expr.kind.kind == TokenType::Not{
+        instructions.push(Instruction::Not(args.0, args.1));
+
+    }else if expr.kind.kind == TokenType::Minus{
+        if _type == Type::Int{
+            instructions.push(Instruction::Neg(args.0, args.1));
+        }else{
+            instructions.push(Instruction::Negf(args.0, args.1));
+        }
+
+
+    }else{ panic!("This is not an unary operation"); };
+
+    (instructions, _type)
+}
+
+
 fn expand_expr(expr:&AST, ctx: &mut Context, return_reg: String) -> (Vec<Instruction>, Type){
 
-    if expr.kind.kind == TokenType::Plus
-    || expr.kind.kind == TokenType::Minus
-    || expr.kind.kind == TokenType::Mul
-    || expr.kind.kind == TokenType::Div
-    || expr.kind.kind == TokenType::Mod
-    || expr.kind.kind == TokenType::Pow
-    || expr.kind.kind == TokenType::GT
-    || expr.kind.kind == TokenType::LT
-    || expr.kind.kind == TokenType::And
-    || expr.kind.kind == TokenType::Or
-    || expr.kind.kind == TokenType::DoubleEq
-    || expr.kind.kind == TokenType::GTEq
-    || expr.kind.kind == TokenType::LTEq
-    || expr.kind.kind == TokenType::NotEq{
+    if expr.children.len() == 2{
         expand_binary_expr(expr, ctx, return_reg)
-    }else if expr.kind.kind == TokenType::Not{
-        let right = &expr.children[0];
-        if right.children.is_empty(){
-            let (p, _) = to_param(&right.kind, ctx);
-            //let last_reg = ctx.get_unique_var_name();
-       
-            
-            return (vec![Instruction::Not(p, return_reg)], Type::Bool);
-        }else{
-            let reg = ctx.create_temp_register(Some(Type::Bool));
-            let (mut instructions, _) = expand_expr(right, ctx, reg.clone());
-            let p = Param::Register(reg);
-            //ctx.num_vars += 1;
-
-            //let last_reg = ctx.get_unique_var_name();
-
-            instructions.push(Instruction::Not(p, return_reg));
-
-            return (instructions, Type::Bool);
-        }
 
     }else if expr.kind.kind == TokenType::Ident{
         let mut instructions = parse_func_call(expr, ctx);
@@ -523,10 +534,10 @@ fn expand_expr(expr:&AST, ctx: &mut Context, return_reg: String) -> (Vec<Instruc
 
 
         return (instructions, ctx.func_returns.get(&expr.kind.literal).unwrap_or(&Type::Void).clone());
-
     }else{
-        panic!("Should not be there")
+        expand_unary_expr(expr, ctx, return_reg)
     }
+
 }
 
 fn parse_assign(assign_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
