@@ -2,11 +2,13 @@ use environment::Environment;
 use ir::Context;
 use neoglot_lib::{regex::*, lexer::*};
 use validator::verify;
+use vm::VM;
 
 mod parser;
 mod validator;
 mod environment;
 mod ir;
+mod vm;
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType{
@@ -40,7 +42,12 @@ impl Symbol for TokenType{}
 impl TokenKind for TokenType{}
 
 fn main() {
-    test_parse(include_str!("test.pprs").to_string(), "C:/Users/Utilisateur/papyrus/src/test.pprs")
+    let program = test_parse(include_str!("test.pprs").to_string(), "C:/Users/Utilisateur/papyrus/src/test.pprs");
+    if !program.is_empty(){
+        let mut vm = VM::new(program);
+        vm.run("main");
+        println!("{:#?}", vm.get_saved_canvas());
+    }
 }
 
 fn init_lexer(lexer:&mut Lexer<TokenType>){
@@ -226,21 +233,20 @@ fn test_tokenize(content:String, path:&str) -> LexingResult<TokenType>{
     lexer.tokenize_content(content, &path)
 }
 
-fn test_parse(content:String, path: &str){
+fn test_parse(content:String, path: &str) -> Vec<ir::Instruction>{
     match test_tokenize(content, path){
         LexingResult::Ok(tokens) => {
             match parser::parse(&tokens, true){
                 Some(frst) => {
                     let mut env = Environment::default();
                     if verify(&frst, &mut env){
-                        for instr in ir::parse(&frst, &mut Context::default()){
-                            println!("{instr:?}")
-                        }
-                    }
+                        ir::parse(&frst, &mut Context::default())
+                    }else{ vec![] }
                 },
 
                 None => {
                     eprintln!("Could not parse {path}");
+                    vec![]
                 }
             }
         },
@@ -248,6 +254,7 @@ fn test_parse(content:String, path: &str){
             for e in errs{
                 eprintln!("{e}");
             }
+            vec![]
         }
     }
 }

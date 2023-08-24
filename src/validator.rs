@@ -56,6 +56,11 @@ fn verify_binding(binding_tree:&AST, env:&Environment) -> bool{
     let name = &binding_tree.children[0].kind;
     let _type = &binding_tree.children[1].kind;
 
+    if env.scope_level == 0 {
+        report("This statement is illegal in this scope", binding_tree.kind.location.clone());
+        valid = false;
+    }
+
     if env.has_var(&name.literal){
         report(&format!("Variable '{}' already exists", name.literal), name.location.clone());
         valid = false;
@@ -93,6 +98,11 @@ fn verify_assign(assign_tree:&AST, env:&mut Environment) -> bool{
     let mut push_new_var = false;
     let mut var_name = "";
 
+    if env.scope_level == 0 {
+        report("This statement is illegal in this scope", assign_tree.kind.location.clone());
+        valid = false;
+    }
+
     if left.kind.kind == TokenType::Colon{
         push_new_var = true;
         var_name = &left.children[0].kind.literal;
@@ -127,6 +137,11 @@ fn verify_func_call(func_call_tree: &AST, env:&Environment) -> bool{
     let name = func_call_tree.kind.literal.clone();
     let mut params = vec![];
     let mut valid = true;
+
+    if env.scope_level == 0 {
+        report("This statement is illegal in this scope", func_call_tree.kind.location.clone());
+        valid = false;
+    }
 
     for arg in &func_call_tree.children[0].children{
         let t = get_expr_return_type(&arg, env);
@@ -192,6 +207,13 @@ fn verify_if(if_tree:&AST, env:&Environment) -> bool{
     let block = &if_tree.children[1];
 
     let mut valid = true;
+
+    if env.scope_level == 0 {
+        report("This statement is illegal in this scope", if_tree.kind.location.clone());
+        valid = false;
+    }
+    
+    
     if !verify_expr(expr, env){
         valid = false;
     }else if let Some(_type) = get_expr_return_type(expr, env){
@@ -237,6 +259,11 @@ fn verify_while(while_tree:&AST, env:&Environment) -> bool{
     let block = &while_tree.children[1];
     let mut valid = true;
 
+    if env.scope_level == 0 {
+        report("This statement is illegal in this scope", while_tree.kind.location.clone());
+        valid = false;
+    }
+
     if !verify_expr(expr, env){
         valid = false;
     
@@ -281,10 +308,11 @@ fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
 
     }else{ Some(Type::Void) };
 
-    let mut block_env = Environment::default();
+    let mut block_env = env.clone();
+    block_env.scope_level = 1;
 
     for param in params{
-        if !verify_binding(param, &env){ valid = false; }
+        if !verify_binding(param, &block_env){ valid = false; }
         else{
             let t = param.children[1].kind.literal.clone();
             block_env.push_var(&param.children[0].kind.literal, get_type(t).unwrap());
@@ -292,7 +320,7 @@ fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
     }
 
     block_env.push_var("?exit_type", expected_return_type.unwrap_or(Type::Void));
-    block_env.scope_level = env.scope_level+1;
+    
 
     if !verify(&block.children, &mut block_env){ valid = false; }
 
@@ -332,6 +360,11 @@ fn verify_travel(travel_tree: &AST, env: &Environment) -> bool{
     let label_y = &travel_tree.children[1].kind.literal;
     let block = &travel_tree.children[2];
 
+    if env.scope_level == 0 {
+        report("This statement is illegal in this scope", travel_tree.kind.location.clone());
+        valid = false;
+    }
+
     if env.has_var(label_x){
         report(&format!("Name '{}' already exists", label_x), travel_tree.kind.location.clone());
         valid = false;
@@ -358,6 +391,11 @@ fn verify_subcanvas(subcanvas_tree: &AST, env: &Environment) -> bool{
     let mut valid = true;
 
     let block = subcanvas_tree.children.last().unwrap();
+
+    if env.scope_level == 0 {
+        report("This statement is illegal in this scope", subcanvas_tree.kind.location.clone());
+        valid = false;
+    }
 
     if env.has_ctx("in_travel"){
         report("subcanvas is illegal in this scope", subcanvas_tree.kind.location.clone());

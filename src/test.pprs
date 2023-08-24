@@ -1,5 +1,7 @@
-a:float = 10+5-0.5*2.0;
 
-b:float = float(1);
-
-c:float = 20^2.0;
+def main(){
+   create_canvas(2, 2);
+   put(0,0, #ff0000);
+   put(1, 1, #ff0000);
+   save_canvas();
+}
