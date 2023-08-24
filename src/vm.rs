@@ -11,7 +11,7 @@ struct StackFrame{
 
 impl Default for StackFrame{
     fn default() -> Self {
-        StackFrame { registers: HashMap::from_iter([("rt".to_string(), 0)]) }
+        StackFrame { registers: HashMap::from_iter([("_rt".to_string(), 0)]) }
     }
 }
 
