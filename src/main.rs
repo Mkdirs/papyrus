@@ -3,6 +3,7 @@ use ir::Context;
 use neoglot_lib::{regex::*, lexer::*};
 use validator::verify;
 use vm::VM;
+use std::{env, fmt::Display, collections::HashSet, path::Path};
 
 mod parser;
 mod validator;
@@ -42,22 +43,169 @@ pub enum TokenType{
 impl Symbol for TokenType{}
 impl TokenKind for TokenType{}
 
+const IMG_OUTPUT:&str = "-img";
+const VID_OUTPUT:&str = "-vid";
+
+const IMG_FORMAT:&[&str] = &["png", "jpg"];
+const VID_FORMAT:&[&str] = &["mp4"];
+
+#[derive(Debug)]
+struct Command<'a>{
+    name: &'a str,
+    args: Vec<String>,
+    options: HashSet<String>
+}
+
 fn main() {
-    let program = test_parse(include_str!("test.pprs").to_string(), "C:/Users/Utilisateur/papyrus/src/test.pprs");
+    println!("{}", env::args().nth(0).expect("msg"));
+
+    let args = &env::args().collect::<Vec<String>>()[1..];
+
+    if args.is_empty(){
+        help();
+        return;
+    }
+    let cmd = read_cmd(&args);
+
+    if cmd.name == "run"{
+        if cmd.args.len() == 1{
+            run(&cmd.args[0], IMG_OUTPUT, IMG_FORMAT[0], cmd.options);
+        
+        }else if cmd.args.len() == 2{
+            let default_format = if &cmd.args[1] == IMG_OUTPUT{
+                IMG_FORMAT[0]
+            }else if &cmd.args[1] == VID_OUTPUT{
+                VID_FORMAT[0]
+            }else{
+                println!("Unknown output type: {}", cmd.args[1]);
+                help();
+                return;
+            };
+
+            run(&cmd.args[0], &cmd.args[1], default_format, cmd.options)
+        }else if cmd.args.len() == 3{
+            if &cmd.args[1] != IMG_OUTPUT && &cmd.args[1] != VID_OUTPUT{
+                println!("Unknown output type: {}", cmd.args[1]);
+                help();
+                return;
+            }
+            
+            if &cmd.args[1] == IMG_OUTPUT{
+                if !IMG_FORMAT.contains(&cmd.args[2].as_str()){
+                    println!("Unknown image file format: {}", cmd.args[2]);
+                    help();
+                    return;
+                }
+            }else if &cmd.args[1] == VID_OUTPUT{
+                if !VID_FORMAT.contains(&cmd.args[2].as_str()){
+                    println!("Unknown video file format: {}", cmd.args[2]);
+                    help();
+                    return;
+                }
+            }
+
+            run(&cmd.args[0], &cmd.args[1], &cmd.args[2], cmd.options);
+        }
+        return;
+    }
+
+    help();
+
     
-    for instr in &program{
-        println!("{instr:?}");
+}
+
+fn run(file:&str, output:&str, format:&str, options: HashSet<String>){
+    let base = Path::new(file);
+    let path = if base.is_relative(){
+        let current = env::current_dir().expect("");
+
+        match current.join(base).canonicalize(){
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("{e}");
+                return;
+            }
+        }
+    }else{
+        base.to_path_buf()
+    };
+
+    if let Some(f) = path.to_str(){
+        let program = parse(f);
+
+        if !program.is_empty(){
+            let mut vm = VM::new(program);
+            vm.run("main");
+
+            if output == IMG_OUTPUT{
+                for (i, canvas) in vm.get_saved_canvas().iter().enumerate(){
+                    let data = canvas.data.iter().flat_map(|e| to_rgb(*e)).collect::<Vec<u8>>();
+
+                    if format == IMG_FORMAT[0]{
+                        output::stbi_write_png(&format!("canvas{i}.png"), canvas.width as u32, canvas.height as u32, 3, &data, 3*canvas.width as u32);
+                    
+                    }else if format == IMG_FORMAT[1]{
+                        output::stbi_write_jpg(&format!("canvas{i}.jpg"), canvas.width as u32, canvas.height as u32, 3, &data, 85);
+                    }
+                }
+            }
+        }
+    }else{
+        eprintln!("Non-UTF8 chars found on the filename");
     }
     
-    if !program.is_empty(){
-        let mut vm = VM::new(program);
-        vm.run("main");
-        for (i,canvas) in vm.get_saved_canvas().iter().enumerate(){
-            let data = canvas.data.iter().flat_map(|e| to_rgb(*e)).collect::<Vec<u8>>();
 
-            output::stbi_write_png(&format!("canvas{i}.png"), canvas.width as u32, canvas.height as u32, 3, &data, 3*canvas.width as u32);
+}
+
+fn read_cmd<'a>(args: &'a[String]) -> Command<'a>{
+    let name = &args[0];
+    let mut cmd = Command{name, args: vec![], options: HashSet::new()};
+
+
+    for arg in &args[1..]{
+        if !arg.starts_with("--"){
+            cmd.args.push(arg.to_string());
+        }else{
+            cmd.options.insert(arg.to_string());
         }
     }
+
+
+    cmd
+}
+
+fn help(){
+    println!("papyrus help");
+    println!("  Shows this");
+    println!();
+    println!("papyrus run <script>");
+    println!("  Runs a script file");
+    println!("  The default output type is {IMG_OUTPUT} and format is {}", IMG_FORMAT[0]);
+    println!();
+    println!("papyrus run <script> <{IMG_OUTPUT} | {VID_OUTPUT}>");
+    println!("  Runs a script file");
+    println!("  Generates an image for each canvas if {IMG_OUTPUT} is set. The default format is {}", IMG_FORMAT[0]);
+    println!("  (W.I.P) Generates a single video file from all the canvas if -{VID_OUTPUT} is set. The default format is {}", VID_FORMAT[0]);
+    println!();
+    println!("papyrus run <script> {IMG_OUTPUT} <{}>", format_array(IMG_FORMAT, "|"));
+    println!("  Runs a script file");
+    println!("  Sets the output images file format");
+    println!();
+    println!("(W.I.P) papyrus run <script> {VID_OUTPUT} <{}> <--export-frames>", format_array(VID_FORMAT, "|"));
+    println!("  Runs a script file");
+    println!("  Sets the output video file format");
+    println!("  Also generates the individual frames of the video if the option --export-frames is set");
+
+}
+
+fn format_array<>(a:&[impl Display], sep:&str) -> String{
+    let mut str = String::new();
+    for e in a{
+        str.push_str(&format!("{e}{sep}"));
+    }
+    str.remove(str.len()-1);
+
+    str
 }
 
 fn to_rgb(pixel: u32) -> [u8; 3]{
@@ -242,16 +390,16 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     
 }
 
-fn test_tokenize(content:String, path:&str) -> LexingResult<TokenType>{
+
+fn tokenize(path: &str) -> LexingResult<TokenType>{
     let mut lexer = Lexer::new();
     init_lexer(&mut lexer);
 
-
-    lexer.tokenize_content(content, &path)
+    lexer.tokenize_file(path)
 }
 
-fn test_parse(content:String, path: &str) -> Vec<ir::Instruction>{
-    match test_tokenize(content, path){
+fn parse(path: &str) -> Vec<ir::Instruction>{
+    match tokenize(path){
         LexingResult::Ok(tokens) => {
             match parser::parse(&tokens, true){
                 Some(frst) => {
@@ -272,36 +420,6 @@ fn test_parse(content:String, path: &str) -> Vec<ir::Instruction>{
                 eprintln!("{e}");
             }
             vec![]
-        }
-    }
-}
-
-fn tokenize(path: &str) -> LexingResult<TokenType>{
-    let mut lexer = Lexer::new();
-    init_lexer(&mut lexer);
-
-    lexer.tokenize_file(path)
-}
-
-fn parse(path: &str){
-    match tokenize(path){
-        LexingResult::Ok(tokens) => {
-            match parser::parse(&tokens, true){
-                Some(frst) => {
-                    for ast in frst{
-                        println!("{ast:?}");
-                    }
-                },
-
-                None => {
-                    eprintln!("Could not parse {path}");
-                }
-            }
-        },
-        LexingResult::Err(errs) =>{
-            for e in errs{
-                eprintln!("{e}");
-            }
         }
     }
 }
