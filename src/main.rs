@@ -9,6 +9,7 @@ mod validator;
 mod environment;
 mod ir;
 mod vm;
+mod output;
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType{
@@ -50,9 +51,20 @@ fn main() {
     
     if !program.is_empty(){
         let mut vm = VM::new(program);
-        //vm.run("main");
-        println!("{:#?}", vm.get_saved_canvas());
+        vm.run("main");
+        for (i,canvas) in vm.get_saved_canvas().iter().enumerate(){
+            let data = canvas.data.iter().flat_map(|e| to_rgb(*e)).collect::<Vec<u8>>();
+
+            output::stbi_write_png(&format!("canvas{i}.png"), canvas.width as u32, canvas.height as u32, 3, &data, 3*canvas.width as u32);
+        }
     }
+}
+
+fn to_rgb(pixel: u32) -> [u8; 3]{
+    let r = ((pixel >> 16) & 0xff) as u8;
+    let g = ((pixel >> 8) & 0xff) as u8;
+    let b = (pixel & 0xff) as u8;
+    [r, g, b]
 }
 
 fn init_lexer(lexer:&mut Lexer<TokenType>){

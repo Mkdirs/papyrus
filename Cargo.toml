@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 neoglot-lib = {git = "https://github.com/Mkdirs/neoglot-lib.git", branch = "beta"}
+
+[build-dependencies]
+cc = "1.0.*"

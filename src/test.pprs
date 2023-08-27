@@ -1,11 +1,14 @@
-def circle(r:int, cw:int, ch:int){
+def circle(r:int, w:int, h:int){
    x:int = 0;
    y: int = 0;
 
-   while(y < ch){
-      while(x < cw){
+   x0:int = w/2;
+   y0:int = h/2;
 
-         dist:int = (x^2) + (y^2);
+   while(y < h){
+      while(x < w){
+
+         dist:int = (x0 - x)^2 + (y0 - y)^2;
 
          if (dist <= r^2) {
             put(x, y, #ff0000);
@@ -20,14 +23,25 @@ def circle(r:int, cw:int, ch:int){
 
 
 def main(){
+   // Crée un canvas de 100x100
    create_canvas(100, 100);
+
+   // Rempli le canvas par du blanc
    fill(#ffffff);
 
-   radius:int = 20;
 
-   subcanvas(100/2-radius, 100/2-radius, radius, radius){
-      circle(radius, radius, radius);
+   sub_w:int = 100/2-1;
+   sub_h:int = 100/2-1;
+
+   radius:int = sub_w/2;
+
+   // Crée un canvas de sub_w x sub_h (50x50)
+   // Fusionne ce canvas sur l'ancien aux positions (100/2-sub_w/2, 100/2-sub_h/2) : soit au centre
+   subcanvas(100/2-sub_w/2, 100/2-sub_h/2, sub_w, sub_h){
+      // On dessine un cercle de rayon radius au milieu du canvas
+      circle(radius, sub_w, sub_h);
    }
 
+   // On enregistre le canvas
    save_canvas();
 }
