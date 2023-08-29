@@ -57,9 +57,9 @@ struct Command<'a>{
 }
 
 fn main() {
-    println!("{}", env::args().nth(0).expect("msg"));
 
-    let args = &env::args().collect::<Vec<String>>()[1..];
+    let raw_args = env::args().collect::<Vec<String>>();
+    let args = raw_args.get(1..).unwrap_or_default();
 
     if args.is_empty(){
         help();
