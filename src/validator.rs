@@ -1,10 +1,12 @@
-use neoglot_lib::{parser, lexer::Token, report};
+use std::{path::{Path, PathBuf}, collections::HashSet, f32::consts::E};
 
-use crate::{TokenType, environment::{Environment, Type, FuncSign}};
+use neoglot_lib::{parser, lexer::{Token, LexingResult, Location}, report};
+
+use crate::{TokenType, environment::{Environment, Type, FuncSign}, tokenize};
 
 type AST = parser::AST<Token<TokenType>>;
 
-pub fn verify(forest: &[AST], env: &mut Environment) -> bool{
+pub fn verify(forest: &[AST], requester:Option<&Location>, env: &mut Environment) -> bool{
     let mut success = true;
 
     for tree in forest{
@@ -20,7 +22,7 @@ pub fn verify(forest: &[AST], env: &mut Environment) -> bool{
             if !verify_assign(tree, env){ success = false; }
         
         }else if tree.kind.kind == TokenType::Ident{
-            if !verify_func_call(tree, env){ success = false; }
+            if !verify_func_call(tree, false, env){ success = false; }
         
         }else if tree.kind.kind == TokenType::Return{
             if !verify_return(tree, env){ success = false; }
@@ -32,13 +34,22 @@ pub fn verify(forest: &[AST], env: &mut Environment) -> bool{
             if !verify_while(tree, env){ success = false; }
 
         }else if tree.kind.kind == TokenType::Def{
-            if !verify_def(tree, env){ success = false; }
+            if !verify_def(tree, false, env){ success = false; }
 
         }else if tree.kind.kind == TokenType::Travel{
             if !verify_travel(tree, env){ success = false; }
 
         }else if tree.kind.kind == TokenType::Subcanvas{
             if !verify_subcanvas(tree, env){ success = false; }
+
+        } else if tree.kind.kind == TokenType::Pub{
+            if !verify_def(&tree.children[0], true, env){ success = false; }
+
+        }else if tree.kind.kind == TokenType::Import{
+            if !verify_import(tree, requester, env){ success = false; }
+
+        }else if tree.kind.kind == TokenType::Dot{
+            if !verify_dot(tree, env){ success = false; }
 
         }else{
             report("Unhandled case in validating process", tree.kind.location.clone());
@@ -63,6 +74,11 @@ fn verify_binding(binding_tree:&AST, env:&Environment) -> bool{
 
     if env.has_var(&name.literal){
         report(&format!("Variable '{}' already exists", name.literal), name.location.clone());
+        valid = false;
+    }
+
+    if env.has_import(&name.literal){
+        report(&format!("The name '{}' is already taken", name.literal), name.location.clone());
         valid = false;
     }
 
@@ -133,7 +149,7 @@ fn verify_assign(assign_tree:&AST, env:&mut Environment) -> bool{
     valid
 }
 
-fn verify_func_call(func_call_tree: &AST, env:&Environment) -> bool{
+fn verify_func_call(func_call_tree: &AST, foreign:bool, env:&Environment) -> bool{
     let name = func_call_tree.kind.literal.clone();
     let mut params = vec![];
     let mut valid = true;
@@ -152,7 +168,7 @@ fn verify_func_call(func_call_tree: &AST, env:&Environment) -> bool{
 
     let func_sign = FuncSign{ name, params };
 
-    if !env.has_func_sign(&func_sign){
+    if !env.has_func_sign(&func_sign) && !foreign{
         report(&format!("Function '{}' does not exists", func_sign), func_call_tree.kind.location.clone());
         valid = false;
 
@@ -226,7 +242,7 @@ fn verify_if(if_tree:&AST, env:&Environment) -> bool{
 
     let mut block_env = env.clone();
     block_env.scope_level += 1;
-    if !verify(&block.children, &mut block_env){ valid = false; }
+    if !verify(&block.children, None, &mut block_env){ valid = false; }
 
     if if_tree.children.len() == 3{
         let else_tree = &if_tree.children[2];
@@ -248,7 +264,7 @@ fn verify_else(else_tree:&AST, env:&Environment) -> bool{
         let mut block_env = env.clone();
         block_env.scope_level += 1;
 
-        if !verify(&child.children, &mut block_env){ valid = false; }
+        if !verify(&child.children, None, &mut block_env){ valid = false; }
     }
 
     valid
@@ -278,12 +294,12 @@ fn verify_while(while_tree:&AST, env:&Environment) -> bool{
     block_env.scope_level += 1;
     block_env.add_ctx("in_while");
 
-    if ! verify(&block.children, &mut block_env){ valid = false; }
+    if ! verify(&block.children, None, &mut block_env){ valid = false; }
 
     valid
 }
 
-fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
+fn verify_def(def_tree: &AST, is_public:bool, env:&mut Environment) -> bool{
     let mut valid = true;
 
     let func_tree = &def_tree.children[0];
@@ -322,7 +338,7 @@ fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
     block_env.push_var("?exit_type", expected_return_type.unwrap_or(Type::Void));
     
 
-    if !verify(&block.children, &mut block_env){ valid = false; }
+    if !verify(&block.children, None, &mut block_env){ valid = false; }
 
     if let Some(last) = block.children.last(){
         if expected_return_type.unwrap_or(Type::Void) != Type::Void &&  last.kind.kind != TokenType::Return{
@@ -336,6 +352,11 @@ fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
         }
     }
 
+    if env.has_import(&name){
+        report(&format!("The name '{name}' is already taken"), def_tree.kind.location.clone());
+        valid = false;
+    }
+
     if valid{
         let func_sign = FuncSign{
             name,
@@ -343,6 +364,10 @@ fn verify_def(def_tree: &AST, env:&mut Environment) -> bool{
         };
 
         if !env.has_func_sign(&func_sign){
+            if is_public{
+                env.push_public_func(Path::new(&def_tree.kind.location.file), func_sign.clone(), expected_return_type.unwrap());
+            }
+            
             env.push_func_sign(func_sign, expected_return_type.unwrap());
         }else{
             report(&format!("Function '{}' already exists", func_sign), def_tree.kind.location.clone());
@@ -382,7 +407,7 @@ fn verify_travel(travel_tree: &AST, env: &Environment) -> bool{
     block_env.push_var(label_x, Type::Int);
     block_env.push_var(label_y, Type::Int);
 
-    if !verify(&block.children, &mut block_env){ valid = false; }
+    if !verify(&block.children, None, &mut block_env){ valid = false; }
 
     valid
 }
@@ -417,14 +442,127 @@ fn verify_subcanvas(subcanvas_tree: &AST, env: &Environment) -> bool{
     block_env.scope_level += 1;
     block_env.add_ctx("in_subcanvas");
 
-    if !verify(&block.children, &mut block_env){ valid = false; }
+    if !verify(&block.children, None, &mut block_env){ valid = false; }
 
     valid
 }
 
+fn verify_import(import_tree: &AST, requester:Option<&Location>, env:&mut Environment) -> bool{
+    let string_lit = &import_tree.children[0].kind.literal;
+    let content = string_lit.get(1..string_lit.len()-1).unwrap();
+
+    if env.scope_level != 0{
+        report("This statement is not allowed in this scope", import_tree.kind.location.clone());
+        return false;
+    }
+
+
+    if Path::new(content).extension().is_some(){
+        report("The path should not contain extension", import_tree.kind.location.clone());
+        return false;
+    }
+
+    let self_path = Path::new(&import_tree.kind.location.file);
+
+
+    let mut s = String::from(content);
+    s.push_str(".pprs");
+    let script_path = &if Path::new(&s).is_relative(){
+        self_path.parent().unwrap().join(Path::new(&s))
+    }else{
+        Path::new(&s).to_path_buf()
+    };
+
+
+    if !script_path.exists(){
+        report(&format!("The path {} doesn't exist", script_path.display()), import_tree.kind.location.clone());
+        return false;
+    }
+
+    if !script_path.is_file(){
+        report(&format!("The path {} is not a file", script_path.display()), import_tree.kind.location.clone());
+        return false;
+    }
+
+    let name = script_path.file_stem().unwrap().to_str().unwrap();
+    if env.has_import(name){
+        report(&format!("The name '{name}' is already taken"), import_tree.kind.location.clone());
+        return false;
+    }
+
+    if self_path == script_path{
+        report("A script cannot self import", import_tree.kind.location.clone());
+        return false;
+    }
+
+    if let Some(requester) = requester{
+        if Path::new(&requester.file) == script_path{
+            report("Circular dependency is not allowed", requester.clone());
+            report("Circular dependency is not allowed", import_tree.kind.location.clone());
+            return false;
+        }
+    }
+
+    if env.imports().values().any(|e| e == script_path){
+        report("You cannot import twice the same script", import_tree.kind.location.clone());
+        return false;
+    }
+
+    let valid = if !env.cached_imports.contains_key(script_path){
+        match tokenize(script_path.to_str().unwrap()){
+            LexingResult::Ok(forest) => {
+                match crate::parser::parse(&forest, true){
+                    Some(forest) => {
+                        let mut other_env = Environment::default();
+                        let res = verify(&forest, Some(&import_tree.kind.location), &mut other_env);
+                        env.cached_imports.insert(script_path.to_path_buf(), forest);
+                        env.cached_imports.extend(other_env.cached_imports);
+                        env.public_functions.extend(other_env.public_functions);
+
+                        res
+                    },
+    
+                    None =>{
+                        report(&format!("Could not parse {}", script_path.display()), import_tree.kind.location.clone());
+                        false
+                    }
+                }
+            },
+    
+            LexingResult::Err(errs) => {
+                for e in errs{
+                    eprintln!("{}", e);
+                }
+                false
+            }
+        }
+    }else{
+        let mut other_env = Environment::default();
+        let res = verify(&env.cached_imports[script_path], Some(&import_tree.kind.location), &mut other_env);
+        env.cached_imports.extend(other_env.cached_imports);
+        env.public_functions.extend(other_env.public_functions);
+
+        res
+    };
+    
+
+    if valid{
+        env.push_import(name, script_path);
+    }
+
+    valid
+}
+
+fn verify_dot(dot_tree:&AST, env: &Environment) -> bool{
+    get_expr_return_type(dot_tree, env).is_some()
+}
+
 fn verify_expr(expr: &AST, env:&Environment) -> bool{
 
-    if expr.kind.kind == TokenType::Ident{
+    if expr.kind.kind == TokenType::Dot{
+        verify_dot(expr, env)
+    
+    }else if expr.kind.kind == TokenType::Ident{
         if expr.children.is_empty(){
             if !env.has_var(&expr.kind.literal){
                 report(&format!("Variable '{}' does not exists", expr.kind.literal), expr.kind.location.clone());
@@ -432,7 +570,7 @@ fn verify_expr(expr: &AST, env:&Environment) -> bool{
             }
             true
         }else{
-            verify_func_call(expr, env)
+            verify_func_call(expr, false, env)
         }
 
 
@@ -473,7 +611,7 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
             env.get_var(&expr.kind.literal).and_then(|e| Some(e.0))
         }else{
             
-            if !verify_func_call(expr, env){ return None; }
+            if !verify_func_call(expr, false, env){ return None; }
 
             let name = expr.kind.literal.clone();
             let mut params = vec![];
@@ -757,6 +895,45 @@ fn get_expr_return_type(expr: &AST, env:&Environment) -> Option<Type>{
                         None
                     }
                 }
+            },
+
+            TokenType::Dot => {
+                if expr.children[0].children.len() != 0{
+                    report("You cannot chain this", expr.kind.location.clone());
+                    return None;
+                }
+
+                if expr.children[0].kind.kind != TokenType::Ident{
+                    report("Expected an identifier", expr.children[0].kind.location.clone());
+                    return None;
+                }
+
+                if !env.has_import(&expr.children[0].kind.literal){
+                    report(&format!("Script {}.pprs was not found", expr.children[0].kind.literal), expr.kind.location.clone());
+                    return None;
+                }
+
+                if expr.children[1].children.len() != 1{
+                    report("Expected function call", expr.kind.location.clone());
+                    return None;
+                }
+
+                if !verify_func_call(&expr.children[1], true, env){ return None; }
+
+                let path = env.imports().get(&expr.children[0].kind.literal).unwrap();
+                let name = expr.children[1].kind.literal.clone();
+                let mut params = vec![];
+                for arg in &expr.children[1].children[0].children{
+                    params.push(get_expr_return_type(&arg, env).unwrap());
+                }
+
+                let func_sign = FuncSign{ name, params };
+                if !env.has_public_func(&path, &func_sign){
+                    report(&format!("The function {func_sign} was not found"), expr.kind.location.clone());
+                    return None;
+                }
+
+                env.public_functions.iter().filter(|(p, func, _)| (p == path) && (func == &func_sign)).map(|e| e.2).next()
             },
             _ => panic!("Unexpected operator")
         }

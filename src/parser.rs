@@ -38,6 +38,12 @@ fn return_regex() -> Regex<TokenType>{
         .then(RegexElement::Item(TokenType::SemiColon, Quantifier::Exactly(1)))
 }
 
+fn dot_access_regex() -> Regex<TokenType>{
+    Regex::new()
+        .then(RegexElement::Item(TokenType::Ident, Quantifier::Exactly(1)))
+        .then(RegexElement::Item(TokenType::Dot, Quantifier::Exactly(1)))
+}
+
 
 
 pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Vec<AST<Token<TokenType>>>>{
@@ -52,7 +58,53 @@ pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Ve
             continue;
         }
 
-        if parser.on_regex(&typed_var_assign_regex()){
+        if parser.on_token(TokenType::Import){
+            let next = parser.peek_at(1);
+            if !expect(next.and_then(|e| Some(e.kind)), TokenType::String){
+                report("Expected a string", parser.peek().unwrap().location.clone());
+                parser.skip(1);
+                sucess = false;
+            }else{
+                let import_tok = parser.pop().unwrap().clone();
+                let str_tok = parser.pop().unwrap().clone();
+
+                if ! expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::SemiColon){
+                    report("Expected ';' at the end", import_tok.location.clone());
+                    sucess = false;
+                    parser.skip(1);
+                }else{
+                    forest.push(AST{
+                        kind: import_tok,
+                        children : vec![
+                            AST{kind: str_tok, children: vec![]}
+                        ]
+                    });
+                    parser.skip(1);
+
+                }
+            }
+        
+        }else if parser.on_token(TokenType::Pub){
+            let next = parser.peek_at(1);
+            if !expect(next.and_then(|e| Some(e.kind)), TokenType::Def){
+                report("Visibility modifier only accepted on function declaration", parser.peek().unwrap().location.clone());
+                parser.skip(1);
+                sucess = false;
+            }else{
+                let pub_tok = parser.peek().unwrap().clone();
+                parser.skip(1);
+                match parse_def(&mut parser, semicolon_terminated){
+                    Some(ast) => {
+                        forest.push(AST{
+                            kind: pub_tok,
+                            children: vec![ast]
+                        })
+                    },
+                    None => sucess = false
+                }
+            }
+        
+        }else if parser.on_regex(&typed_var_assign_regex()){
             match parse_typed_var_assign(&mut parser){
                 Some(ast) => forest.push(ast),
                 None => sucess = false
@@ -72,6 +124,11 @@ pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Ve
 
         }else if parser.on_regex(&return_regex()){
             match parse_return(&mut parser){
+                Some(ast) => forest.push(ast),
+                None => sucess = false
+            }
+        }else if parser.on_regex(&dot_access_regex()){
+            match parse_dot_access(&mut parser){
                 Some(ast) => forest.push(ast),
                 None => sucess = false
             }
@@ -123,6 +180,59 @@ pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Ve
     if !sucess{ None }
     else { Some(forest) }
 }
+
+fn parse_dot_access(parser:&mut Parser<TokenType>) -> Option<AST<Token<TokenType>>>{
+    let mut tokens = vec![];
+    let mut semicolon_terminated = false;
+    while let Some(token) = parser.pop(){
+        if token.kind == TokenType::SemiColon{
+            semicolon_terminated = true;
+            break;
+        }
+
+        tokens.push(token.clone());
+    }
+
+    if !semicolon_terminated{
+        report("Expected ';' at the end", tokens[tokens.len()-1].location.clone());
+        parser.skip(1);
+        return None;
+    }
+
+    let raw_expr = parse_expression(&tokens);
+
+    if raw_expr.is_none(){
+        report("Could not parse expression", tokens[0].location.clone());
+        parser.skip(1);
+        return None;
+    }
+
+    let normalized = match normalize_expression(raw_expr.unwrap()){
+        Some(expr) => Some(expr),
+        None => None
+    };
+
+    if normalized.is_none(){
+        return None;
+    }
+
+    let normalized = normalized.unwrap();
+    let mut valid = true;
+    if normalized.kind.kind != TokenType::Dot{
+        report("This is not a statement", tokens[0].location.clone());
+        valid = false;
+    }
+
+    if normalized.children.len() != 2{
+        report("The dot operator only takes two operand", tokens[0].location.clone());
+        valid = false;
+    }
+
+    if valid{
+        Some(normalized)
+    }else{ None }
+}
+
 
 fn parse_typed_var_assign(parser:&mut Parser<TokenType>) -> Option<AST<Token<TokenType>>>{
     match parser.slice_regex(&typed_var_assign_regex()){
@@ -679,6 +789,7 @@ fn parse_def(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option
 
 fn parse_ident(parser:&mut Parser<TokenType>, semicolon_terminated:bool) -> Option<AST<Token<TokenType>>>{
     let mut ident_ast = AST{ kind: parser.pop().unwrap().clone(), children: vec![] };
+
     
     match parser.slice_block(TokenType::LParen, TokenType::RParen){
         Some(tokens) => {
@@ -831,6 +942,8 @@ fn parse_expression(tokens: &[Token<TokenType>]) -> Option<AST<Expr<TokenType>>>
 
     parser.add_operator(Operator{kind: TokenType::Mod, position: Position::Infix}, 8);
     parser.add_operator(Operator{kind: TokenType::Pow, position: Position::Infix}, 8);
+
+    parser.add_operator(Operator { kind: TokenType::Dot, position: Position::Infix }, 9);
     
 
 

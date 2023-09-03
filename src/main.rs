@@ -1,6 +1,6 @@
 use environment::Environment;
-use ir::Context;
-use neoglot_lib::{regex::*, lexer::*};
+use ir::Runtime;
+use neoglot_lib::{regex::*, lexer::*, parser::AST};
 use validator::verify;
 use vm::VM;
 use std::{env, fmt::Display, collections::HashSet, path::Path};
@@ -16,12 +16,16 @@ mod output;
 pub enum TokenType{
     Ident,
 
+    Pub, Import,
+
+    String,
+
     Int, Float, Hex, Bool,
 
     LParen, RParen,
     LBracket, RBracket,
 
-    Comma, Colon, SemiColon,
+    Comma, Colon, SemiColon, Dot,
 
     If, Else, While,
     Travel, Subcanvas,
@@ -116,26 +120,19 @@ fn main() {
 
 fn run(file:&str, output:&str, format:&str, options: HashSet<String>){
     let base = Path::new(file);
-    let path = if base.is_relative(){
-        let current = env::current_dir().expect("");
 
-        match current.join(base).canonicalize(){
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("{e}");
-                return;
-            }
-        }
+    let path = if base.is_relative(){
+        env::current_dir().unwrap().join(base)
     }else{
         base.to_path_buf()
     };
 
     if let Some(f) = path.to_str(){
-        let program = parse(f);
+        let runtime = parse(f);
 
-        if !program.is_empty(){
-            let mut vm = VM::new(program);
-            vm.run("main");
+        if let Some(runtime) = runtime{
+            let mut vm = VM::new(runtime);
+            vm.run(&path, "main");
 
             if output == IMG_OUTPUT{
                 for (i, canvas) in vm.get_saved_canvas().iter().enumerate(){
@@ -335,6 +332,26 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
             RegexElement::Item('\n', Quantifier::Exactly(1))
         ], Quantifier::ZeroOrMany));
 
+    let pub_regex = Regex::new()
+            .then(RegexElement::Item('p', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('u', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('b', Quantifier::Exactly(1)));
+
+    let import_regex = Regex::new()
+            .then(RegexElement::Item('i', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('m', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('p', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('o', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('r', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('t', Quantifier::Exactly(1)));
+
+    let string_regex = Regex::new()
+            .then(RegexElement::Item('"', Quantifier::Exactly(1)))
+            .then(RegexElement::NoneOf(vec![
+                RegexElement::Item('"', Quantifier::Exactly(1))
+            ], Quantifier::ZeroOrMany))
+            .then(RegexElement::Item('"', Quantifier::Exactly(1)));
+
 
     lexer.register(LexerNode::new(if_regex, TokenType::If));
     lexer.register(LexerNode::new(else_regex, TokenType::Else));
@@ -348,6 +365,10 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(float_regex, TokenType::Float));
     lexer.register(LexerNode::new(int_regex, TokenType::Int));
     lexer.register(LexerNode::new(hex_regex, TokenType::Hex));
+
+    lexer.register(LexerNode::new(pub_regex, TokenType::Pub));
+    lexer.register(LexerNode::new(import_regex, TokenType::Import));
+    lexer.register(LexerNode::new(string_regex, TokenType::String));
 
     lexer.register(LexerNode::new(ident_regex, TokenType::Ident));
 
@@ -364,6 +385,7 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item(',', Quantifier::Exactly(1))), TokenType::Comma));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item(':', Quantifier::Exactly(1))), TokenType::Colon));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item(';', Quantifier::Exactly(1))), TokenType::SemiColon));
+    lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('.', Quantifier::Exactly(1))), TokenType::Dot));
 
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('+', Quantifier::Exactly(1))), TokenType::Plus));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('-', Quantifier::Exactly(1))), TokenType::Minus));
@@ -391,22 +413,21 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
 }
 
 
-fn tokenize(path: &str) -> LexingResult<TokenType>{
+pub fn tokenize(path: &str) -> LexingResult<TokenType>{
     let mut lexer = Lexer::new();
     init_lexer(&mut lexer);
 
     lexer.tokenize_file(path)
 }
 
-fn parse(path: &str) -> Vec<ir::Instruction>{
+pub fn prepare(path: &str) -> Vec<AST<Token<TokenType>>>{
     match tokenize(path){
         LexingResult::Ok(tokens) => {
             match parser::parse(&tokens, true){
-                Some(frst) => {
-                    let mut env = Environment::default();
-                    if verify(&frst, &mut env){
-                        ir::parse(&frst, &mut Context::default())
-                    }else{ vec![] }
+                Some(forest) => {
+                    if verify(&forest, None, &mut Environment::default()){
+                        forest
+                    }else {vec![]}
                 },
 
                 None => {
@@ -415,11 +436,22 @@ fn parse(path: &str) -> Vec<ir::Instruction>{
                 }
             }
         },
-        LexingResult::Err(errs) =>{
+
+        LexingResult::Err(errs) => {
             for e in errs{
                 eprintln!("{e}");
             }
             vec![]
         }
     }
+}
+
+fn parse(path: &str) -> Option<Runtime>{
+    let forest = prepare(path);
+    if forest.is_empty(){
+        return None;
+    }
+
+    Some(ir::parse(&forest))
+    
 }

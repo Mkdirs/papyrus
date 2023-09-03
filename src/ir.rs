@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::{PathBuf, Path}};
 
 use neoglot_lib::{parser, lexer::Token};
 
-use crate::{TokenType, environment::Type, validator::get_type};
+use crate::{TokenType, environment::{Type, FuncSign}, validator::get_type};
 
 type AST = parser::AST<Token<TokenType>>;
 
@@ -15,6 +15,7 @@ pub enum Param{
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Instruction{
+    Import(String, String),
     Copy(Param, String),
     
     Add(Param, Param, String),
@@ -74,13 +75,16 @@ pub enum Instruction{
 }
 
 #[derive(Debug, Clone)]
-pub struct Context{
+struct Context{
     registers : Vec<String>,
     labels: Vec<String>,
     bindings: HashMap<String, Type>,
-    func_returns: HashMap<String, Type>,
+    pub func_returns: HashMap<FuncSign, Type>,
     pub renamed_vars: HashMap<String, String>,
-    top_function: String
+    top_function: String,
+    imports: Vec<Script>,
+    pub func_labels: HashMap<FuncSign, String>,
+    path_aliases: HashMap<String, PathBuf>
 }
 
 impl Default for Context{
@@ -90,11 +94,38 @@ impl Default for Context{
             labels: Vec::default(),
             bindings: HashMap::default(),
             func_returns: HashMap::from_iter([
-                ("float".to_string(), Type::Float),
-                ("int".to_string(), Type::Int)
+                (
+                    FuncSign{
+                        name: "float".to_string(),
+                        params: vec![Type::Int]
+                    }, Type::Float
+                ),
+                (
+                    FuncSign{
+                        name: "int".to_string(),
+                        params: vec![Type::Float]
+                    }, Type::Int
+                )
             ]),
             renamed_vars: HashMap::default(),
-            top_function: String::default()
+            top_function: String::default(),
+            imports: vec![],
+            func_labels: HashMap::from_iter([
+
+                (
+                    FuncSign{
+                        name: "float".to_string(),
+                        params: vec![Type::Int]
+                    }, "float".to_string()
+                ),
+                (
+                    FuncSign{
+                        name: "int".to_string(),
+                        params: vec![Type::Float]
+                    }, "int".to_string()
+                )
+            ]),
+            path_aliases: HashMap::new()
         }
     }
 }
@@ -135,23 +166,48 @@ impl Context{
 
     pub fn create_temp_label(&mut self, tag: &str) -> String{
         self.add_label(&format!("_{tag}"));
-        //let n = self.labels.iter().filter(|e| e.starts_with(&format!("_{tag}"))).count();
-        //self.labels.push(format!("_{tag}{n}"));
         self.labels.last().unwrap().clone()
     }
 
-
-
-    /*pub fn get_unique_while_label(&self) -> String{
-        format!("while{}", self.num_while_labels)
+    pub fn has_script(&self, path:&Path) -> bool{
+        self.imports.iter().any(|e| &e.path == path)
     }
 
-    pub fn get_unique_while_label_end(&self) -> String{
-        format!("end_while{}", self.num_while_labels)
-    }*/
+
 }
 
-pub fn parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
+#[derive(Debug, Clone)]
+pub struct Script{
+    pub path: PathBuf,
+    pub program: Vec<Instruction>
+}
+
+#[derive(Debug)]
+pub struct Runtime{
+    pub scripts: Vec<Script>
+}
+
+pub fn parse(forest: &Vec<AST>) -> Runtime{
+    let path = Path::new(&forest[0].kind.location.file).to_path_buf();
+    let mut ctx = Context::default();
+
+    let program = _parse(forest, &mut ctx);
+
+    let main_file = Script{path, program};
+    let mut scripts = vec![main_file];
+
+    for imported_script in ctx.imports{
+        if imported_script.path != scripts[0].path{
+            scripts.push(imported_script);
+        }
+    }
+
+
+    Runtime { scripts}
+}
+
+
+fn _parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
     let mut instructions = vec![];
 
 
@@ -160,8 +216,8 @@ pub fn parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
             add_var_in_context(&tree, ctx);
         
         }else if tree.kind.kind == TokenType::Eq{
-
             instructions.append(&mut parse_assign(tree, ctx));
+        
         }else if tree.kind.kind == TokenType::Def{
             instructions.append(&mut parse_def(tree, ctx));
         
@@ -169,7 +225,8 @@ pub fn parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
             instructions.append(&mut parse_return(tree, ctx));
         
         }else if tree.kind.kind == TokenType::Ident{
-            instructions.append(&mut parse_func_call(tree, ctx));
+            let (mut instr, _) = parse_func_call(tree, None, ctx);
+            instructions.append(&mut instr);
         
         }else if tree.kind.kind == TokenType::While{
             instructions.append(&mut parse_while(tree, ctx));
@@ -178,8 +235,60 @@ pub fn parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
             let root_scope = ctx.create_temp_label("root_scope");
             instructions.append(&mut parse_if(tree, ctx, root_scope.clone()));
             instructions.push(Instruction::Label(root_scope));
+        
         }else if tree.kind.kind == TokenType::Subcanvas{
             instructions.append(&mut parse_subcanvas(tree, ctx));
+        
+        }else if tree.kind.kind == TokenType::Pub{
+            instructions.append(&mut parse_def(&tree.children[0], ctx));
+        
+        }else if tree.kind.kind == TokenType::Import{
+            let self_path = Path::new(&tree.kind.location.file);
+
+            let str_literal = &tree.children[0].kind.literal;
+            let mut content = String::from(&str_literal[1..str_literal.len()-1]);
+            content.push_str(".pprs");
+
+            let path = if Path::new(&content).is_relative(){
+                self_path.parent().unwrap().join(Path::new(&content))
+            }else{
+                Path::new(&content).to_path_buf()
+            };
+
+            let forest = crate::prepare(path.to_str().unwrap());
+            let mut import_ctx = Context::default();
+            let program = _parse(&forest, &mut import_ctx);
+
+            let script = Script{path: path.clone(), program};
+
+            if !ctx.has_script(&path){
+                ctx.imports.push(script);
+            }
+
+            let script_name = path.file_stem().unwrap().to_str().unwrap();
+
+            for (sign, ret) in import_ctx.func_returns{
+                let s = FuncSign{name: format!("{}.{}", script_name, sign.name), params: sign.params};
+                ctx.func_returns.insert(s, ret);
+            }
+
+            for (sign, label) in import_ctx.func_labels{
+                let s = FuncSign{name: format!("{}.{}", script_name, sign.name), params: sign.params};
+                ctx.func_labels.insert(s, label);
+            }
+
+            for imported_script in import_ctx.imports{
+                if !ctx.has_script(&imported_script.path){
+                    ctx.imports.push(imported_script);
+                }
+            }
+
+            ctx.path_aliases.insert(script_name.to_string(), path);
+        
+        }else if tree.kind.kind == TokenType::Dot{
+            let script_name = tree.children[0].kind.literal.clone();
+            let (mut instr, _) = parse_func_call(&tree.children[1], Some(script_name), ctx);
+            instructions.append(&mut instr);
         }
     }
 
@@ -202,7 +311,6 @@ fn to_param(token: &Token<TokenType>, ctx: &Context) -> (Param, Type){
             n
         };
         (Param::Register(name.clone()), ctx.bindings.get(&name).unwrap().clone() )
-        //Param::Register(ctx.get_renamed_user_var(&token.literal).clone())
     }else if token.kind == TokenType::Int{
         (
             Param::Value(token.literal.parse::<i32>().expect("Unable to parse to int") as u32),
@@ -246,9 +354,6 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
         let p2:Param;
         (p1, left_type) = to_param(&left.kind, ctx);
         (p2, right_type) = to_param(&right.kind, ctx);
-        
-        //ctx.num_vars += 1;
-        //let last_reg = ctx.get_unique_var_name();
        
         (p1, p2, return_reg)
     
@@ -260,13 +365,10 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
         ctx.bindings.insert(reg.clone(), left_type);
         
         instructions.append(&mut instr);
-        //let last_reg = ctx.get_unique_var_name();
 
         let p1 = Param::Register(reg);
         let p2:Param;
         (p2, right_type) = to_param(&right.kind, ctx);
-        //ctx.num_vars += 1;
-        //let reg = ctx.get_unique_var_name();
 
         (p1, p2, return_reg)
     }else if left.children.is_empty() && !right.children.is_empty(){
@@ -301,9 +403,6 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
         ctx.bindings.insert(reg2.clone(), right_type);
         instructions.append(&mut instr);
         let p2 = Param::Register(reg2);
-        //ctx.num_vars += 1;
-        
-        //let reg = ctx.get_unique_var_name();
 
         (p1, p2, return_reg)
     };
@@ -361,7 +460,6 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             instructions.push(Instruction::Subf(args.0, Param::Register(reg), args.2));
             Type::Float
         }
-        //instructions.push(Instruction::Sub(args.0, args.1, args.2));
     
     }else if expr.kind.kind == TokenType::Mul{
         if left_type == Type::Float && right_type == Type::Float{
@@ -388,7 +486,6 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             instructions.push(Instruction::Mulf(args.0, Param::Register(reg), args.2));
             Type::Float
         }
-        //instructions.push(Instruction::Mul(args.0, args.1, args.2));
     
     }else if expr.kind.kind == TokenType::Div{
         if left_type == Type::Float && right_type == Type::Float{
@@ -415,7 +512,6 @@ fn expand_binary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<
             instructions.push(Instruction::Divf(args.0, Param::Register(reg), args.2));
             Type::Float
         }
-        //instructions.push(Instruction::Div(args.0, args.1, args.2));
 
     }else if expr.kind.kind == TokenType::Pow{
         if left_type == Type::Float && right_type == Type::Float{
@@ -547,18 +643,22 @@ fn expand_unary_expr(expr: &AST, ctx: &mut Context, return_reg:String) -> (Vec<I
 
 fn expand_expr(expr:&AST, ctx: &mut Context, return_reg: String) -> (Vec<Instruction>, Type){
 
-    if expr.children.len() == 2{
+    if expr.kind.kind == TokenType::Dot{
+        let script_name = expr.children[0].kind.literal.clone();
+        let (mut instructions, func_sign) = parse_func_call(&expr.children[1], Some(script_name), ctx);
+        
+        instructions.push(Instruction::Copy(Param::Register("_rt".to_string()), return_reg));
+        return (instructions, ctx.func_returns.get(&func_sign).unwrap_or(&Type::Void).clone())
+    
+    }else if expr.children.len() == 2{
         expand_binary_expr(expr, ctx, return_reg)
 
     }else if expr.kind.kind == TokenType::Ident{
-        let mut instructions = parse_func_call(expr, ctx);
-        //let reg = ctx.get_unique_var_name();
-        //ctx.num_vars += 1;
+        let (mut instructions, func_sign) = parse_func_call(expr, None,ctx);
 
         instructions.push(Instruction::Copy(Param::Register("_rt".to_string()), return_reg));
 
-
-        return (instructions, ctx.func_returns.get(&expr.kind.literal).unwrap_or(&Type::Void).clone());
+        return (instructions, ctx.func_returns.get(&func_sign).unwrap_or(&Type::Void).clone());
     }else{
         expand_unary_expr(expr, ctx, return_reg)
     }
@@ -583,54 +683,14 @@ fn parse_assign(assign_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
         r
     }else{ ctx.renamed_vars.get(&name).unwrap().clone() };
 
-    /*if !ctx.registers.contains(&name){
-        ctx.add_register(name.clone(), None);
-    }*/
-    
-    /*let normalized_name = if !ctx.renamed_user_vars.contains_key(&name){
-        ctx.add_user_var(name.clone());
-        ctx.get_renamed_user_var(&name).clone()
-    }else{
-        ctx.renamed_user_vars[&name].clone()
-    };*/
 
     if !expr.children.is_empty(){
         let (mut instr, t) = expand_expr(expr, ctx, normalized_name.clone());
         ctx.bindings.insert(normalized_name, t);
         instructions.append(&mut instr);
 
-        /*if expr.kind.kind == TokenType::Ident{
-            instructions.push(Instruction::Copy(Param::Register("rt".to_string()), normalized_name));
-        }else{
-            //ctx.rename_user_var(name, ctx.get_unique_var_name());
-            //let last_reg = ctx.get_unique_var_name();
-
-            //instructions.push(Instruction::Copy(Param::Register(last_reg), normalized_name));
-        }*/
-
-        //let last_reg = ctx.get_unique_var_name();
-        
-        //ctx.rename_user_var(name, last_reg);
-        //ctx.num_vars += 1;
-        /*if expr.kind.kind != TokenType::Ident{
-            instructions.append(&mut expand_expr(expr, ctx));
-            let last_reg = ctx.get_unique_var_name();
-            ctx.rename_user_var(name, last_reg);
-            //ctx.num_vars += 1;
-        }else{
-            instructions.append(&mut parse_func_call(expr, ctx));
-            let last_reg = ctx.get_unique_var_name();
-            
-            instructions.push(Instruction::Copy(Param::Register("rt".to_string()), last_reg));
-        }*/
         
     }else{
-        /*let normalized_name = if !ctx.renamed_user_vars.contains_key(&name){
-            ctx.add_user_var(name.clone());
-            ctx.get_renamed_user_var(&name).clone()
-        }else{
-            ctx.renamed_user_vars[&name].clone()
-        };*/
 
         let (param, t) = to_param(&expr.kind, ctx);
         ctx.bindings.insert(normalized_name.clone(), t);
@@ -645,28 +705,40 @@ fn parse_def(def_tree: &AST, parent:&mut Context) -> Vec<Instruction>{
     let func_tree = &def_tree.children[0];
     let block = &def_tree.children[def_tree.children.len()-1];
 
-    if def_tree.children.len() == 3{
-        parent.func_returns.insert(func_tree.kind.literal.clone(), get_type(def_tree.children[1].kind.literal.clone()).unwrap());
+    let ret_type = if def_tree.children.len() == 3{
+        get_type(def_tree.children[1].kind.literal.clone()).unwrap()
     }else{
-        parent.func_returns.insert(func_tree.kind.literal.clone(), Type::Void);
-    }
+        Type::Void
+    };
+
 
     let mut ctx = Context::default();
     ctx.top_function = func_tree.kind.literal.clone();
 
     parent.add_label(&func_tree.kind.literal);
-    //let name = func_tree.kind.literal.clone();
+
     instructions.push(Instruction::Label(parent.labels.last().unwrap().clone()));
+
+    let mut params = vec![];
 
     for (i, param) in func_tree.children.iter().enumerate(){
         let r = format!("p{i}");
-        ctx.add_register(r.clone(), get_type(param.children[1].kind.literal.clone()));
+        let t = get_type(param.children[1].kind.literal.clone());
+        params.push(t.unwrap());
+        ctx.add_register(r.clone(), t);
         ctx.renamed_vars.insert(param.children[0].kind.literal.clone(), r);
-        //add_var_in_context(param, &mut ctx);
-        //rename_var(param, format!("p{i}"), &mut ctx);
     }
 
-    instructions.append(&mut parse(&block.children, &mut ctx));
+    let sign = FuncSign{name: func_tree.kind.literal.clone(), params};
+
+    parent.func_labels.insert(sign.clone(), parent.labels.last().unwrap().clone());
+    parent.func_returns.insert(sign, ret_type);
+    
+    ctx.path_aliases = parent.path_aliases.clone();
+    ctx.func_labels = parent.func_labels.clone();
+    ctx.func_returns = parent.func_returns.clone();
+
+    instructions.append(&mut _parse(&block.children, &mut ctx));
     instructions.push(Instruction::Ret);
 
     instructions
@@ -689,26 +761,36 @@ fn parse_return(return_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
         vec![Instruction::Copy(p, "_rt".to_string())]
     }
 }
-fn parse_func_call(func_call_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
+fn parse_func_call(func_call_tree: &AST, script_name:Option<String>,ctx: &mut Context) -> (Vec<Instruction>, FuncSign){
     let name = func_call_tree.kind.literal.clone();
     let mut instructions = vec![];
     let mut params = vec![];
+
+    let mut params_type = vec![];
 
 
     for arg in &func_call_tree.children[0].children{
         if !arg.children.is_empty(){
             let reg = ctx.create_temp_register(None);
             let (mut instr, t) = expand_expr(arg, ctx, reg.clone());
+            params_type.push(t);
             ctx.bindings.insert(reg.clone(), t);
 
             instructions.append(&mut instr);
-            //let last_reg = ctx.get_unique_var_name();
+
             params.push(Param::Register(reg));
         }else{
-            let (p, _) = to_param(&arg.kind, ctx);
+            let (p, t) = to_param(&arg.kind, ctx);
             params.push(p);
+            params_type.push(t);
         }
     }
+
+    let sign = if let Some(script_name) = script_name.clone(){
+        FuncSign{name: format!("{script_name}.{name}"), params: params_type}
+    }else{
+        FuncSign{name: name.clone(), params: params_type}
+    };
 
     if &name == "create_canvas"{
         instructions.push(Instruction::Push(params[0].clone(), params[1].clone()));
@@ -734,19 +816,29 @@ fn parse_func_call(func_call_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
         instructions.push(Instruction::Int(params[0].clone(), reg));
 
     }else{
-        instructions.push(Instruction::Call(name, params));
+        let unique_name = ctx.func_labels.get(&sign).unwrap().clone();
+
+        if let Some(script_name) = script_name{
+            let path = ctx.path_aliases.get(&script_name).unwrap().to_str().unwrap();
+            instructions.push(Instruction::Import(path.to_string(), script_name.clone()));
+            instructions.push(Instruction::Call(format!("{script_name}.{unique_name}"), params));
+        
+        }else{
+            instructions.push(Instruction::Call(unique_name, params));
+        }
     }
 
 
-    instructions
+    (instructions, sign)
 }
+
 
 fn parse_while(while_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
     let expr = &while_tree.children[0];
     let block = &while_tree.children[1];
 
 
-    let while_start = ctx.create_temp_label("while");//ctx.get_unique_while_label();
+    let while_start = ctx.create_temp_label("while");
     let mut instructions = vec![Instruction::Label(while_start.clone())];
     let end_label = format!("_end_{}", while_start);
 
@@ -760,12 +852,12 @@ fn parse_while(while_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
         ctx.bindings.insert(reg.clone(), t);
 
         instructions.append(&mut instr);
-        //let last_reg = ctx.get_unique_var_name();
+
         Param::Register(reg)
     };
     instructions.push(Instruction::JF(param, end_label.clone()));
 
-    instructions.append(&mut parse(&block.children, ctx));
+    instructions.append(&mut _parse(&block.children, ctx));
     
     instructions.push(Instruction::Jump(while_start));
     instructions.push(Instruction::Label(end_label));
@@ -794,7 +886,7 @@ fn parse_if(if_tree: &AST, ctx: &mut Context, root_scope_label:String) -> Vec<In
     
     if if_tree.children.len() != 3{
         instructions.push(Instruction::JF(param, root_scope_label));
-        instructions.append(&mut parse(&block.children, ctx));
+        instructions.append(&mut _parse(&block.children, ctx));
     }else{
         let else_tree = &if_tree.children[2];
         
@@ -803,7 +895,7 @@ fn parse_if(if_tree: &AST, ctx: &mut Context, root_scope_label:String) -> Vec<In
 
             let else_if_start = format!("_elif{}", n);
             instructions.push(Instruction::JF(param, else_if_start.clone()));
-            instructions.append(&mut parse(&block.children, ctx));
+            instructions.append(&mut _parse(&block.children, ctx));
             instructions.push(Instruction::Jump(root_scope_label.clone()));
             
             instructions.push(Instruction::Label(else_if_start));
@@ -811,11 +903,11 @@ fn parse_if(if_tree: &AST, ctx: &mut Context, root_scope_label:String) -> Vec<In
         }else{
             let else_labl = ctx.create_temp_label("else");
             instructions.push(Instruction::JF(param, else_labl.clone()));
-            instructions.append(&mut parse(&block.children, ctx));
+            instructions.append(&mut _parse(&block.children, ctx));
             instructions.push(Instruction::Jump(root_scope_label));
            
             instructions.push(Instruction::Label(else_labl));
-            instructions.append(&mut parse(&else_tree.children[0].children, ctx));
+            instructions.append(&mut _parse(&else_tree.children[0].children, ctx));
 
         }
     };
@@ -888,7 +980,7 @@ fn parse_subcanvas(subcanvas_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
     };
 
     instructions.push(Instruction::Push(width_param, height_param));
-    instructions.append(&mut parse(&block.children, ctx));
+    instructions.append(&mut _parse(&block.children, ctx));
     instructions.push(Instruction::Merge(x_param, y_param));
 
     instructions

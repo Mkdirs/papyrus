@@ -1,4 +1,8 @@
-use std::{collections::{HashMap, HashSet}, fmt::Display};
+use std::{collections::{HashMap, HashSet}, fmt::Display, path::{Path, PathBuf}};
+
+use neoglot_lib::{parser::AST, lexer::Token};
+
+use crate::TokenType;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Type{
@@ -28,7 +32,10 @@ pub struct Environment{
     types: HashSet<String>,
     variables: HashMap<String, (Type, Option<String>)>,
     func_signs: HashSet<FuncSign>,
-    func_returns: HashMap<FuncSign, Type>
+    func_returns: HashMap<FuncSign, Type>,
+    imports: HashMap<String, PathBuf>,
+    pub public_functions: HashSet<(PathBuf, FuncSign, Type)>,
+    pub cached_imports: HashMap<PathBuf, Vec<AST<Token<TokenType>>>>
 }
 
 impl Default for Environment{
@@ -76,7 +83,14 @@ impl Default for Environment{
 
 impl Environment{
     pub fn new() -> Self{
-        Self { scope_level: 0, contexts: HashSet::new(), types: HashSet::new(), variables: HashMap::new(), func_signs: HashSet::new(), func_returns: HashMap::new() }
+        Self {
+            scope_level: 0, contexts: HashSet::new(),
+            types: HashSet::new(), variables: HashMap::new(),
+            func_signs: HashSet::new(), func_returns: HashMap::new(),
+            imports: HashMap::new(),
+            public_functions: HashSet::new(),
+            cached_imports: HashMap::new()
+        }
     }
 
     pub fn add_ctx(&mut self, ctx:&str){
@@ -124,4 +138,27 @@ impl Environment{
     pub fn get_func_return(&self, func_sign: &FuncSign) -> Option<Type>{
         self.func_returns.get(func_sign).copied()
     }
+
+    pub fn push_import(&mut self, name:&str, path:&Path){
+        self.imports.insert(name.to_string(), path.to_path_buf());
+    }
+
+
+    pub fn has_import(&self, name:&str) -> bool{
+        self.imports.contains_key(name)
+    }
+
+    pub fn imports(&self) -> &HashMap<String, PathBuf>{
+        &self.imports
+    }
+
+    pub fn push_public_func(&mut self, path:&Path, func_sign:FuncSign, return_type: Type){
+        self.public_functions.insert((path.to_path_buf(), func_sign, return_type));
+    }
+
+    pub fn has_public_func(&self, path:&Path, func_sign: &FuncSign) -> bool{
+        self.public_functions.iter().filter(|e| &e.0 == path)
+        .any(|e| &e.1 == func_sign)
+    }
+
 }

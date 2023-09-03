@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::{Path, PathBuf}};
 
-use crate::ir::{Instruction, Param};
+use crate::ir::{Instruction, Param, Runtime, Script};
 
 
 #[derive(Debug)]
@@ -41,15 +41,14 @@ impl Canvas{
         Canvas { width, height, data}
     }
 
-    pub fn merge(&mut self, offst_x:isize, offst_y:isize, other:Self){
-        for y in 0..other.height{
-            for x in 0..other.width{
-                let my_x = (x as isize) + offst_x;
-                let my_y = (y as isize) + offst_y;
+    pub fn merge(&mut self, offst_x:i32, offst_y:i32, other:Self){
+        for y in offst_y..(offst_y+other.height as i32){
+            for x in offst_x..(offst_x+other.width as i32){
+                if (x >= 0 && x < self.width as i32) && (y >= 0 && y < self.height as i32){
+                    let i = y * (self.width as i32) + x;
+                    let other_i = (y-offst_y) * (other.width as i32) + (x-offst_x);
 
-                let i = my_y * (self.width as isize) +my_x;
-                if i < (self.data.len() as isize) && i >= 0{
-                    self.data[i as usize] = other.data[y*other.width+x];
+                    self.data[i as usize] = other.data[other_i as usize];
                 }
             }
         }
@@ -58,21 +57,23 @@ impl Canvas{
 
 #[derive(Debug)]
 pub struct VM{
-    program: Vec<Instruction>,
+    runtime: Runtime,
     prog_counter: usize,
     memory: Vec<StackFrame>,
     canvas: Vec<Canvas>,
-    saved_canvas: Vec<Canvas>
+    saved_canvas: Vec<Canvas>,
+    path_aliases: HashMap<String, PathBuf>
 }
 
 impl VM{
-    pub fn new(program: Vec<Instruction>) -> Self{
+    pub fn new(runtime: Runtime) -> Self{
         VM{
-            program,
+            runtime,
             prog_counter: 0,
             memory: vec![StackFrame::default()],
             canvas: vec![],
-            saved_canvas: vec![]
+            saved_canvas: vec![],
+            path_aliases: HashMap::new()
         }
     }
 
@@ -80,26 +81,32 @@ impl VM{
         &self.saved_canvas
     }
 
-    fn get_indx_of(&self, label: &str) -> usize{
-        self.program.iter().enumerate().find(|(_, instr)| {
+    pub fn get_script(&self, path:&Path) -> Option<&Script>{
+        self.runtime.scripts.iter().find(|e| &e.path == path)
+    }
+
+    fn get_indx_of(&self, label: &str, script_path: &Path) -> usize{
+        let script = self.get_script(script_path).expect(&format!("Script {} was not found", script_path.display()));
+        script.program.iter().enumerate().find(|(_, instr)| {
             &Instruction::Label(label.to_string()) == *instr
         }).expect(&format!("Label {} was not found", label)).0
     }
 
-    pub fn run(&mut self, entry_point:&str){
-        self.prog_counter = self.get_indx_of(entry_point);
+    pub fn run(&mut self, script_path: &Path, entry_point:&str){
+        self.prog_counter = self.get_indx_of(entry_point, script_path);
+        let script = self.get_script(script_path).expect("msg").clone();
         loop{
-            if self.prog_counter >= self.program.len(){
+            if self.prog_counter >= script.program.len(){
                 panic!("Unexpected end");
             }
-            if! self.exec(){ break; }
+            if! self.exec(&script){ break; }
             else{ self.prog_counter +=1; }
         }
         
     }
 
-    fn exec(&mut self) -> bool{
-        let instruction = self.program[self.prog_counter].clone();
+    fn exec(&mut self, script:&Script) -> bool{
+        let instruction = script.program[self.prog_counter].clone();
         match instruction{
             Instruction::Add(a, b, r) => {
                 let left = match a{
@@ -163,9 +170,25 @@ impl VM{
                 }
 
                 let old_pc = self.prog_counter;
-
                 self.memory.insert(0, stack);
-                self.run(&f);
+
+                if f.contains('.'){
+                    let list = f.split('.').collect::<Vec<&str>>();
+                    let script = list[0];
+                    let func_label = &list[1];
+
+                    let old_aliases = self.path_aliases.clone();
+                    self.path_aliases.clear();
+
+                    let path = old_aliases.get(script).unwrap();
+
+                    self.run(&path, &func_label);
+                    self.path_aliases = old_aliases;
+                    
+                }else{
+                    self.run(&script.path, &f);
+                }
+
 
                 let callee_stack = self.memory.remove(0);
 
@@ -341,6 +364,11 @@ impl VM{
                 true
             },
 
+            Instruction::Import(path, name) => {
+                self.path_aliases.insert(name, Path::new(&path).to_path_buf());
+                true
+            },
+
             Instruction::Int(a, r) => {
                 let value = match a{
                     Param::Value(v) => f32::from_bits(v),
@@ -361,14 +389,14 @@ impl VM{
                 };
 
                 if !value{
-                    self.prog_counter = self.get_indx_of(&label);
+                    self.prog_counter = self.get_indx_of(&label, &script.path);
                 }
 
                 true
             },
 
             Instruction::Jump(label) =>{
-                self.prog_counter = self.get_indx_of(&label);
+                self.prog_counter = self.get_indx_of(&label, &script.path);
                 true
             },
 
@@ -444,13 +472,13 @@ impl VM{
 
             Instruction::Merge(x, y) => {
                 let x = match x {
-                    Param::Value(v) => v as isize,
-                    Param::Register(reg) => self.memory[0].get(&reg) as isize
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let y = match y {
-                    Param::Value(v) => v as isize,
-                    Param::Register(reg) => self.memory[0].get(&reg) as isize
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let to_merge = self.canvas.remove(0);
@@ -657,8 +685,11 @@ impl VM{
                     Param::Register(reg) => self.memory[0].get(&reg) as u32
                 };
 
-                if x >= 0 && y >= 0{
-                    let i = y as usize * self.canvas[0].width + x as usize;
+                let width = self.canvas[0].width;
+                let height = self.canvas[0].height;
+
+                if (x >= 0 && x < width as i32) && (y >= 0 && y < height as i32){
+                    let i = y as usize * width + x as usize;
                     self.canvas[0].data[i] = color;
                 }
 
