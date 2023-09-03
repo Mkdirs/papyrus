@@ -129,7 +129,7 @@ fn run(file:&str, output:&str, format:&str, options: HashSet<String>){
 
 
     if let Some(ext) = path.extension(){
-        if ext != ".pprs"{
+        if ext != "pprs"{
             eprintln!("Expected a '.pprs' file extension");
             return;
         }
