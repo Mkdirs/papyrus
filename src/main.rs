@@ -81,7 +81,7 @@ fn main() {
             }else if &cmd.args[1] == VID_OUTPUT{
                 VID_FORMAT[0]
             }else{
-                println!("Unknown output type: {}", cmd.args[1]);
+                eprintln!("Unknown output type: {}", cmd.args[1]);
                 help();
                 return;
             };
@@ -89,20 +89,20 @@ fn main() {
             run(&cmd.args[0], &cmd.args[1], default_format, cmd.options)
         }else if cmd.args.len() == 3{
             if &cmd.args[1] != IMG_OUTPUT && &cmd.args[1] != VID_OUTPUT{
-                println!("Unknown output type: {}", cmd.args[1]);
+                eprintln!("Unknown output type: {}", cmd.args[1]);
                 help();
                 return;
             }
             
             if &cmd.args[1] == IMG_OUTPUT{
                 if !IMG_FORMAT.contains(&cmd.args[2].as_str()){
-                    println!("Unknown image file format: {}", cmd.args[2]);
+                    eprintln!("Unknown image file format: {}", cmd.args[2]);
                     help();
                     return;
                 }
             }else if &cmd.args[1] == VID_OUTPUT{
                 if !VID_FORMAT.contains(&cmd.args[2].as_str()){
-                    println!("Unknown video file format: {}", cmd.args[2]);
+                    eprintln!("Unknown video file format: {}", cmd.args[2]);
                     help();
                     return;
                 }
@@ -126,6 +126,22 @@ fn run(file:&str, output:&str, format:&str, options: HashSet<String>){
     }else{
         base.to_path_buf()
     };
+
+
+    if let Some(ext) = path.extension(){
+        if ext != ".pprs"{
+            eprintln!("Expected a '.pprs' file extension");
+            return;
+        }
+    }else{
+        eprintln!("Expected a '.pprs' file extension");
+        return;
+    }
+
+    if !path.exists(){
+        eprintln!("Could not find file {}", path.display());
+        return;
+    }
 
     if let Some(f) = path.to_str(){
         let runtime = parse(f);

@@ -136,6 +136,7 @@ Creates a new canvas of size `w`x`h` and push it on top of the canvas stack.\
 At the end of the block the contents of the canvas are copied to the region starting at (`x`, `y`) of dimensions `w`x`h` of the second canvas on the stack.\
 The first canvas is then removed of the stack.
 
+
 ## Control flow structures
 
 `if`/`else if`/`else` work like other languages
@@ -174,6 +175,38 @@ Comparison:
 * Lower than or equals: `<=`
 
 And the boolean complement: `!`
+
+## Importing
+
+You can import functions from other scripts by using the keword `import`.\
+Functions that can be imported use the visibility modifier `pub`.
+
+File draw.pprs:
+```
+pub fn square(x:int, y:int, w:int, h:int, col:color){
+    subcanvas(x, y, w, h){
+        fill(col);
+    }
+}
+```
+
+File main.pprs:
+```
+import "draw";
+
+def main(){
+    create_canvas(100, 100);
+    fill(#ffffff);
+    draw.square(0, 0, 100, 25, #ff0000);
+    save_canvas();
+}
+```
+
+The file path you give in import must not contain any file extension: It will append '.pprs' automatically.\
+Two files with the same name cannot be imported even if their path are different.\
+Ex: 'utils/foo' and '/libs/author/foo' cannot be imported in the same script because the name 'foo' will not be resolved correctly.
+
+> **Note**: the keyword `as` will be added to allow aliasing of script name : `import "path/mylib" as lib;`
 
 # CLI
 
