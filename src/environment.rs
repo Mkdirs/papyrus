@@ -122,6 +122,11 @@ impl Default for Environment{
             name: String::from("rgba"),
             params: vec![Type::Int, Type::Int, Type::Int, Type::Int]
         }, Type::Color);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("rgb"),
+            params: vec![Type::Int, Type::Int, Type::Int]
+        }, Type::Color);
         
         env
     }

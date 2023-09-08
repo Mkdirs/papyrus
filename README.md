@@ -163,6 +163,13 @@ Gives the alpha value of a color.
 `returns color`\
 Constructs a color.
 
+`rgb(r, g, b)`\
+`r:int`\
+`g:int`\
+`b:int`\
+`returns color`\
+Constructs a solid color.(calls `rgba(r, g, b, 255)` )
+
 ## Subdividing a canvas
 
 ```
