@@ -155,6 +155,14 @@ Gives the blue value of a color.
 `returns int`\
 Gives the alpha value of a color.
 
+`rgba(r, g, b, a)`\
+`r:int`\
+`g:int`\
+`b:int`\
+`a:int`\
+`returns color`\
+Constructs a color.
+
 ## Subdividing a canvas
 
 ```

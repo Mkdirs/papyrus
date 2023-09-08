@@ -867,6 +867,48 @@ impl VM{
                 true
             },
 
+            Instruction::RGBA(r, g, b, a, reg) => {
+                let mut r = match r{
+                    Param::Value(ValueType::Big(v)) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32,
+
+                    _ => panic!("ints can't be 64 bits")
+                };
+
+                let mut g = match g{
+                    Param::Value(ValueType::Big(v)) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32,
+
+                    _ => panic!("ints can't be 64 bits")
+                };
+
+                let mut b = match b{
+                    Param::Value(ValueType::Big(v)) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32,
+
+                    _ => panic!("ints can't be 64 bits")
+                };
+
+                let mut a = match a{
+                    Param::Value(ValueType::Big(v)) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32,
+
+                    _ => panic!("ints can't be 64 bits")
+                };
+
+                r = (r.clamp(0, 255) & 0xff) << 24;
+                g = (g.clamp(0, 255) & 0xff) << 16;
+                b = (b.clamp(0, 255) & 0xff) << 8;
+                a = a.clamp(0, 255) & 0xff;
+
+                let color = r | g | b | a;
+
+                self.memory[0].set(&reg, color as u64);
+
+
+                true
+            }
+
             Instruction::Ret => {false},
 
             Instruction::Sample(x, y, r) => {
