@@ -12,14 +12,14 @@ Download the latest release [here](https://github.com/Mkdirs/papyrus/releases/la
 
 ## Types
 
-* color:    A 32-bits unsigned integer representing a color
+* color:    A 64-bits unsigned integer representing a color
 * int:      A 32-bits signed integer
 * float:    A 32-bits floating point number according to the IEE 754 single precision
 * bool:     A boolean
 
-A color literal is a hexadecimal number starting with '#' and consisting of 6 digits. 2 for each rgb channel.
+A color literal is a hexadecimal number starting with '#' and consisting of 8 digits. 2 for each rgba channel.
 \
-Ex: `#ff00ff` is red: 255, green: 0, blue: 255 which is purple.
+Ex: `#ff00ffff` is red: 255, green: 0, blue: 255, alpha: 255 which is purple.
 
 An int literal match the regular expression `-?[0-9]+`.\
 Ex: `10`, `20`, `-58`, `0` etc.
@@ -62,7 +62,7 @@ To declare a function:
 // The function returns a color
 def foo(bar:int, baz:float) : color{
     // very intensive computations...
-    return #ffffff;
+    return #ffffffff;
 }
 ```
 
@@ -196,8 +196,8 @@ import "draw";
 
 def main(){
     create_canvas(100, 100);
-    fill(#ffffff);
-    draw.square(0, 0, 100, 25, #ff0000);
+    fill(#ffffffff);
+    draw.square(0, 0, 100, 25, #ff0000ff);
     save_canvas();
 }
 ```

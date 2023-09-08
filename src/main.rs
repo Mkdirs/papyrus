@@ -152,13 +152,13 @@ fn run(file:&str, output:&str, format:&str, options: HashSet<String>){
 
             if output == IMG_OUTPUT{
                 for (i, canvas) in vm.get_saved_canvas().iter().enumerate(){
-                    let data = canvas.data.iter().flat_map(|e| to_rgb(*e)).collect::<Vec<u8>>();
+                    let data = canvas.data.iter().flat_map(|e| to_rgba(*e)).collect::<Vec<u8>>();
 
                     if format == IMG_FORMAT[0]{
-                        output::stbi_write_png(&format!("canvas{i}.png"), canvas.width as u32, canvas.height as u32, 3, &data, 3*canvas.width as u32);
+                        output::stbi_write_png(&format!("canvas{i}.png"), canvas.width, canvas.height, 4, &data, 4*canvas.width);
                     
                     }else if format == IMG_FORMAT[1]{
-                        output::stbi_write_jpg(&format!("canvas{i}.jpg"), canvas.width as u32, canvas.height as u32, 3, &data, 85);
+                        output::stbi_write_jpg(&format!("canvas{i}.jpg"), canvas.width, canvas.height, 4, &data, 85);
                     }
                 }
             }
@@ -221,11 +221,12 @@ fn format_array<>(a:&[impl Display], sep:&str) -> String{
     str
 }
 
-fn to_rgb(pixel: u32) -> [u8; 3]{
-    let r = ((pixel >> 16) & 0xff) as u8;
-    let g = ((pixel >> 8) & 0xff) as u8;
-    let b = (pixel & 0xff) as u8;
-    [r, g, b]
+fn to_rgba(pixel: u64) -> [u8; 4]{
+    let r = ((pixel >> 24) & 0xff) as u8;
+    let g = ((pixel >> 16) & 0xff) as u8;
+    let b = ((pixel >> 8) & 0xff) as u8;
+    let a = (pixel & 0xff) as u8;
+    [r, g, b, a]
 }
 
 fn init_lexer(lexer:&mut Lexer<TokenType>){
@@ -261,7 +262,7 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
                 RegexElement::Set('a', 'f', Quantifier::Exactly(1)),
                 RegexElement::Set('A', 'F', Quantifier::Exactly(1))
             ])
-        ], Quantifier::Exactly(6)));
+        ], Quantifier::Exactly(8)));
 
     let if_regex = Regex::new()
         .then(RegexElement::Item('i', Quantifier::Exactly(1)))

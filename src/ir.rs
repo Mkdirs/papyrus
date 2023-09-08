@@ -6,10 +6,16 @@ use crate::{TokenType, environment::{Type, FuncSign}, validator::get_type};
 
 type AST = parser::AST<Token<TokenType>>;
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ValueType{
+    Big(u32),
+    Long(u64),
+}
+
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Param{
-    Value(u32),
+    Value(ValueType),
     Register(String)
 }
 
@@ -322,27 +328,27 @@ fn to_param(token: &Token<TokenType>, ctx: &Context) -> (Param, Type){
         (Param::Register(name.clone()), ctx.bindings.get(&name).unwrap().clone() )
     }else if token.kind == TokenType::Int{
         (
-            Param::Value(token.literal.parse::<i32>().expect("Unable to parse to int") as u32),
+            Param::Value(ValueType::Big(token.literal.parse::<i32>().expect("Unable to parse to int") as u32)),
             Type::Int
         )
     
     }else if token.kind == TokenType::Float{
         (
-            Param::Value(token.literal.parse::<f32>().expect("Unable to parse to float").to_bits()),
+            Param::Value(ValueType::Big(token.literal.parse::<f32>().expect("Unable to parse to float").to_bits())),
             Type::Float
         )
     
     }else if token.kind == TokenType::Bool{
         if &token.literal == "true"{
-            (Param::Value(1), Type::Bool)
+            (Param::Value(ValueType::Big(1)), Type::Bool)
         }else if &token.literal == "false"{
-            (Param::Value(0), Type::Bool)
+            (Param::Value(ValueType::Big(1)), Type::Bool)
         }else{ panic!("Should not be there") }
 
     }else if token.kind == TokenType::Hex{
         let lit = token.literal.clone();
         (
-            Param::Value(u32::from_str_radix(&lit[1..], 16).expect("Unable to parse to u32")),
+            Param::Value(ValueType::Long(u64::from_str_radix(&lit[1..], 16).expect("Unable to parse to u64"))),
             Type::Color
         )
     }else{
