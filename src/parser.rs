@@ -67,21 +67,53 @@ pub fn parse(tokens:&[Token<TokenType>], semicolon_terminated:bool) -> Option<Ve
             }else{
                 let import_tok = parser.pop().unwrap().clone();
                 let str_tok = parser.pop().unwrap().clone();
+                let mut as_tree:Option<AST<Token<TokenType>>> = None;
 
-                if ! expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::SemiColon){
+                if expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::As){
+                    let as_tok = parser.pop().unwrap().clone();
+
+                    if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::Ident){
+                        report("Expected an identifier", as_tok.location.clone());
+
+                        if ! expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::SemiColon){
+                            parser.skip(1);
+                        }
+                        
+                        sucess = false;
+                    }else{
+                        as_tree = Some(AST{
+                            kind: as_tok,
+                            children: vec![
+                                AST{kind: str_tok.clone(), children: vec![]},
+                                AST{kind: parser.pop().unwrap().clone(), children: vec![]}
+                            ]
+                        });
+                    }
+                }
+
+                if !expect(parser.peek().and_then(|e| Some(e.kind)), TokenType::SemiColon){
                     report("Expected ';' at the end", import_tok.location.clone());
                     sucess = false;
                     parser.skip(1);
-                }else{
-                    forest.push(AST{
-                        kind: import_tok,
-                        children : vec![
-                            AST{kind: str_tok, children: vec![]}
-                        ]
-                    });
-                    parser.skip(1);
-
                 }
+                
+                if sucess{
+                    if let Some(as_tree) = as_tree{
+                        forest.push(AST{
+                            kind: import_tok,
+                            children: vec![as_tree]
+                        });
+                    }else{
+                        forest.push(AST{
+                            kind: import_tok,
+                            children : vec![
+                                AST{kind: str_tok, children: vec![]}
+                            ]
+                        });
+                    }
+                    
+                }
+                parser.skip(1);
             }
         
         }else if parser.on_token(TokenType::Pub){

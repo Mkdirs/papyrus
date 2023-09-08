@@ -244,8 +244,13 @@ fn _parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
         
         }else if tree.kind.kind == TokenType::Import{
             let self_path = Path::new(&tree.kind.location.file);
+            let has_aliasing = tree.children[0].kind.kind == TokenType::As;
 
-            let str_literal = &tree.children[0].kind.literal;
+            let str_literal = if has_aliasing{
+                &tree.children[0].children[0].kind.literal
+            }else{
+                &tree.children[0].kind.literal
+            };
             let mut content = String::from(&str_literal[1..str_literal.len()-1]);
             content.push_str(".pprs");
 
@@ -265,7 +270,11 @@ fn _parse(forest: &Vec<AST>, ctx: &mut Context) -> Vec<Instruction>{
                 ctx.imports.push(script);
             }
 
-            let script_name = path.file_stem().unwrap().to_str().unwrap();
+            let script_name = if has_aliasing{
+                &tree.children[0].children[1].kind.literal
+            }else{
+                path.file_stem().unwrap().to_str().unwrap()
+            };
 
             for (sign, ret) in import_ctx.func_returns{
                 let s = FuncSign{name: format!("{}.{}", script_name, sign.name), params: sign.params};

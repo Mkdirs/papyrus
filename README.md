@@ -203,10 +203,17 @@ def main(){
 ```
 
 The file path you give in import must not contain any file extension: It will append '.pprs' automatically.\
-Two files with the same name cannot be imported even if their path are different.\
-Ex: 'utils/foo' and '/libs/author/foo' cannot be imported in the same script because the name 'foo' will not be resolved correctly.
+You can give an alias to the script you import with the keyword `as`:
+```
+import "foo/author/draw";
+import "draw" as my_draw;
 
-> **Note**: the keyword `as` will be added to allow aliasing of script name : `import "path/mylib" as lib;`
+def main(){
+    draw.foo();
+    my_draw.bar();
+}
+```
+That also allow importing two files that have the same name.
 
 # CLI
 

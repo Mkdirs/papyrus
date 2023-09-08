@@ -448,7 +448,13 @@ fn verify_subcanvas(subcanvas_tree: &AST, env: &Environment) -> bool{
 }
 
 fn verify_import(import_tree: &AST, requester:Option<&Location>, env:&mut Environment) -> bool{
-    let string_lit = &import_tree.children[0].kind.literal;
+    let has_aliasing = import_tree.children[0].kind.kind == TokenType::As;
+    let string_lit = if has_aliasing{
+        &import_tree.children[0].children[0].kind.literal
+
+    }else{
+        &import_tree.children[0].kind.literal
+    };
     let content = string_lit.get(1..string_lit.len()-1).unwrap();
 
     if env.scope_level != 0{
@@ -484,7 +490,11 @@ fn verify_import(import_tree: &AST, requester:Option<&Location>, env:&mut Enviro
         return false;
     }
 
-    let name = script_path.file_stem().unwrap().to_str().unwrap();
+    let name = if has_aliasing{
+        &import_tree.children[0].children[1].kind.literal
+    }else{
+        script_path.file_stem().unwrap().to_str().unwrap()
+    };
     if env.has_import(name){
         report(&format!("The name '{name}' is already taken"), import_tree.kind.location.clone());
         return false;

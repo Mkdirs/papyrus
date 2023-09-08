@@ -16,7 +16,7 @@ mod output;
 pub enum TokenType{
     Ident,
 
-    Pub, Import,
+    Pub, Import, As,
 
     String,
 
@@ -361,6 +361,10 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
             .then(RegexElement::Item('r', Quantifier::Exactly(1)))
             .then(RegexElement::Item('t', Quantifier::Exactly(1)));
 
+    let as_regex = Regex::new()
+            .then(RegexElement::Item('a', Quantifier::Exactly(1)))
+            .then(RegexElement::Item('s', Quantifier::Exactly(1)));
+
     let string_regex = Regex::new()
             .then(RegexElement::Item('"', Quantifier::Exactly(1)))
             .then(RegexElement::NoneOf(vec![
@@ -384,6 +388,7 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
 
     lexer.register(LexerNode::new(pub_regex, TokenType::Pub));
     lexer.register(LexerNode::new(import_regex, TokenType::Import));
+    lexer.register(LexerNode::new(as_regex, TokenType::As));
     lexer.register(LexerNode::new(string_regex, TokenType::String));
 
     lexer.register(LexerNode::new(ident_regex, TokenType::Ident));
