@@ -41,14 +41,19 @@ impl Canvas{
         Canvas { width, height, data}
     }
 
-    pub fn merge(&mut self, offst_x:i32, offst_y:i32, other:Self){
-        for y in offst_y..(offst_y+other.height as i32){
-            for x in offst_x..(offst_x+other.width as i32){
+    pub fn merge(&mut self, offst_x:i32, offst_y:i32, source:Self){
+        for y in offst_y..(offst_y+source.height as i32){
+            for x in offst_x..(offst_x+source.width as i32){
                 if (x >= 0 && x < self.width as i32) && (y >= 0 && y < self.height as i32){
                     let i = y * (self.width as i32) + x;
-                    let other_i = (y-offst_y) * (other.width as i32) + (x-offst_x);
+                    let other_i = (y-offst_y) * (source.width as i32) + (x-offst_x);
 
-                    self.data[i as usize] = other.data[other_i as usize];
+                    let pixel = source.data[other_i as usize];
+                    
+                    let [_, _, _, a] = to_rgba(pixel);
+                    if a != 0{
+                        self.data[i as usize] = pixel;
+                    }
                 }
             }
         }
@@ -95,9 +100,6 @@ impl VM{
     pub fn run(&mut self, script_path: &Path, entry_point:&str){
         self.prog_counter = self.get_indx_of(entry_point, script_path);
         let script = self.get_script(script_path).expect("msg").clone();
-        for instr in &script.program{
-            println!("{instr:?}");
-        }
         loop{
             if self.prog_counter >= script.program.len(){
                 panic!("Unexpected end");
