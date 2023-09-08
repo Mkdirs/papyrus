@@ -221,7 +221,7 @@ fn format_array<>(a:&[impl Display], sep:&str) -> String{
     str
 }
 
-fn to_rgba(pixel: u64) -> [u8; 4]{
+fn to_rgba(pixel: u32) -> [u8; 4]{
     let r = ((pixel >> 24) & 0xff) as u8;
     let g = ((pixel >> 16) & 0xff) as u8;
     let b = ((pixel >> 8) & 0xff) as u8;

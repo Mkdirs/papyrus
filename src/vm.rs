@@ -1,11 +1,11 @@
 use std::{collections::HashMap, path::{Path, PathBuf}};
 
-use crate::{ir::{Instruction, Param, Runtime, Script, ValueType}, to_rgba};
+use crate::{ir::{Instruction, Param, Runtime, Script}, to_rgba};
 
 
 #[derive(Debug)]
 struct StackFrame{
-    registers: HashMap<String, u64>
+    registers: HashMap<String, u32>
 }
 
 
@@ -16,11 +16,11 @@ impl Default for StackFrame{
 }
 
 impl StackFrame{
-    fn get(&self, register:&str) -> u64{
+    fn get(&self, register:&str) -> u32{
         *self.registers.get(register).expect(&format!("The register {} was not found", register))
     }
 
-    fn set(&mut self, register: &str, value:u64){
+    fn set(&mut self, register: &str, value:u32){
         self.registers.insert(register.to_string(), value);
     }
 }
@@ -29,12 +29,12 @@ impl StackFrame{
 pub struct Canvas{
     pub width: u32,
     pub height: u32,
-    pub data: Vec<u64>
+    pub data: Vec<u32>
 }
 
 impl Canvas{
     pub fn new(width: u32, height: u32) -> Self{
-        let mut data:Vec<u64> = vec![];
+        let mut data:Vec<u32> = vec![];
         for _ in 0..width*height{
             data.push(0);
         }
@@ -113,90 +113,74 @@ impl VM{
         match instruction{
             Instruction::Add(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left+right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::Addf(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left+right;
 
-                self.memory[0].set(&r, result.to_bits() as u64);
+                self.memory[0].set(&r, result.to_bits());
                 true
             },
 
             Instruction::And(a, b, r) =>{
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v != 0,
-                    Param::Register(reg) => self.memory[0].get(&reg) != 0,
-
-                    _ => panic!("bools can't be 64 bits")
+                    Param::Value(v) => v != 0,
+                    Param::Register(reg) => self.memory[0].get(&reg) != 0
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v != 0,
-                    Param::Register(reg) => self.memory[0].get(&reg) != 0,
-
-                    _ => panic!("bools can't be 64 bits")
+                    Param::Value(v) => v != 0,
+                    Param::Register(reg) => self.memory[0].get(&reg) != 0
                 };
 
                 let result = left && right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::Alpha(c, r) => {
                 let color = match c {
-                    Param::Value(ValueType::Long(v)) => v,
-                    Param::Register(reg) => self.memory[0].get(&reg),
-
-                    _ => panic!("colors can't be 32 bits")
+                    Param::Value(v) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let [_, _, _, a] = to_rgba(color);
-                self.memory[0].set(&r, a as u64);
+                self.memory[0].set(&r, a as u32);
                 true
             },
 
             Instruction::Blue(c, r) => {
                 let color = match c {
-                    Param::Value(ValueType::Long(v)) => v,
-                    Param::Register(reg) => self.memory[0].get(&reg),
-
-                    _ => panic!("colors can't be 32 bits")
+                    Param::Value(v) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let [_, b, _, _] = to_rgba(color);
-                self.memory[0].set(&r, b as u64);
+                self.memory[0].set(&r, b as u32);
                 true
             },
 
@@ -205,8 +189,7 @@ impl VM{
                 for (i, param) in params.iter().enumerate(){
                     let reg = &format!("p{i}");
                     match param{
-                        Param::Value(ValueType::Big(v)) => stack.set(reg, *v as u64),
-                        Param::Value(ValueType::Long(v)) => stack.set(reg, *v),
+                        Param::Value(v) => stack.set(reg, *v),
                         Param::Register(r) => stack.set(reg, self.memory[0].get(r))
                     }
                 }
@@ -241,8 +224,7 @@ impl VM{
 
             Instruction::Copy(a, r) => {
                 match a{
-                    Param::Value(ValueType::Big(v)) => self.memory[0].set(&r, v as u64),
-                    Param::Value(ValueType::Long(v)) => self.memory[0].set(&r, v),
+                    Param::Value(v) => self.memory[0].set(&r, v),
                     Param::Register(reg) => {
                         let v = self.memory[0].get(&reg);
                         self.memory[0].set(&r, v);
@@ -253,70 +235,60 @@ impl VM{
 
             Instruction::Div(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left / right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
 
                 true
             },
 
             Instruction::Divf(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left / right;
 
-                self.memory[0].set(&r, result.to_bits() as u64);
+                self.memory[0].set(&r, result.to_bits());
 
                 true
             },
 
             Instruction::Eq(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as u64,
-                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Value(v) => v,
                     Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as u64,
-                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Value(v) => v,
                     Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let result = left == right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::Fill(c) => {
                 match c{
-                    Param::Value(ValueType::Long(v)) => {
+                    Param::Value(v) => {
                         for i in 0..self.canvas[0].data.len(){
                             self.canvas[0].data[i] = v;
                         }
@@ -328,9 +300,7 @@ impl VM{
                         for i in 0..self.canvas[0].data.len(){
                             self.canvas[0].data[i] = v;
                         }
-                    },
-
-                    _ => panic!("colors can't be 32 bits")
+                    }
                 }
 
                 true
@@ -338,120 +308,100 @@ impl VM{
 
             Instruction::Flt(a, r) => {
                 let value = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = value as f32;
 
-                self.memory[0].set(&r, result.to_bits() as u64);
+                self.memory[0].set(&r, result.to_bits());
 
                 true
             },
 
             Instruction::GE(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left >= right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::GEf(a, b, r) => {
 
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left >= right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
 
                 true
             },
 
             Instruction::Green(c, r) => {
                 let color = match c {
-                    Param::Value(ValueType::Long(v)) => v,
-                    Param::Register(reg) => self.memory[0].get(&reg),
-
-                    _ => panic!("colors can't be 32 bits")
+                    Param::Value(v) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let [_, g, _, _] = to_rgba(color);
-                self.memory[0].set(&r, g as u64);
+                self.memory[0].set(&r, g as u32);
                 true
             },
 
             Instruction::GT(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left > right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::GTf(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left > right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::Height(r) => {
-                self.memory[0].set(&r, self.canvas[0].height as u64);
+                self.memory[0].set(&r, self.canvas[0].height);
                 true
             },
 
@@ -462,25 +412,21 @@ impl VM{
 
             Instruction::Int(a, r) => {
                 let value = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = value as i32;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
 
                 true
             },
 
             Instruction::JF(a, label) => {
                 let value = match a{
-                    Param::Value(ValueType::Big(v)) => v != 0,
-                    Param::Register(reg) => self.memory[0].get(&reg) != 0,
-
-                    _ => panic!("bools can't be 64 bits")
+                    Param::Value(v) => v != 0,
+                    Param::Register(reg) => self.memory[0].get(&reg) != 0
                 };
 
                 if !value{
@@ -497,85 +443,69 @@ impl VM{
 
             Instruction::LE(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left <= right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::LEf(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left <= right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::LT(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left < right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::LTf(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left < right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
@@ -583,17 +513,13 @@ impl VM{
 
             Instruction::Merge(x, y) => {
                 let x = match x {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let y = match y {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let to_merge = self.canvas.remove(0);
@@ -606,143 +532,119 @@ impl VM{
 
             Instruction::Mod(a, b, r) => {
                 let left = match a {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left % right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
 
                 true
             },
 
             Instruction::Mul(a, b, r) => {
                 let left = match a {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left * right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
 
                 true
             },
 
             Instruction::Mulf(a, b, r) => {
                 let left = match a {
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b {
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left * right;
 
-                self.memory[0].set(&r, result.to_bits() as u64);
+                self.memory[0].set(&r, result.to_bits());
 
                 true
             },
 
             Instruction::NE(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as u64,
-                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Value(v) => v,
                     Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as u64,
-                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Value(v) => v,
                     Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let result = left != right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::Neg(a, r) => {
                 let value = match a {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
-                self.memory[0].set(&r, (-value) as u64);
+                self.memory[0].set(&r, (-value) as u32);
                 true
             },
 
             Instruction::Negf(a, r) => {
                 let value = match a {
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
-                self.memory[0].set(&r, (-value).to_bits() as u64);
+                self.memory[0].set(&r, (-value).to_bits());
                 true
             },
 
             Instruction::Not(a, r) => {
                 let value = match a {
-                    Param::Value(ValueType::Big(v)) => v != 0,
-                    Param::Register(reg) => self.memory[0].get(&reg) != 0,
-
-                    _ => panic!("bools can't be 64 bits")
+                    Param::Value(v) => v != 0,
+                    Param::Register(reg) => self.memory[0].get(&reg) != 0
                 };
 
-                self.memory[0].set(&r, (!value) as u64);
+                self.memory[0].set(&r, (!value) as u32);
                 true
             },
 
             Instruction::Or(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v != 0,
-                    Param::Register(reg) => self.memory[0].get(&reg) != 0,
-
-                    _ => panic!("bools can't be 64 bits")
+                    Param::Value(v) => v != 0,
+                    Param::Register(reg) => self.memory[0].get(&reg) != 0
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v != 0,
-                    Param::Register(reg) => self.memory[0].get(&reg) != 0,
-
-                    _ => panic!("bools can't be 64 bits")
+                    Param::Value(v) => v != 0,
+                    Param::Register(reg) => self.memory[0].get(&reg) != 0
                 };
 
                 let result = left || right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
@@ -753,17 +655,13 @@ impl VM{
 
             Instruction::Pow(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = if right < 0{
@@ -772,44 +670,36 @@ impl VM{
                     left.pow(right as u32)
                 };
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::Powf(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left.powf(right);
 
-                self.memory[0].set(&r, result.to_bits() as u64);
+                self.memory[0].set(&r, result.to_bits());
                 true
             },
 
             Instruction::Push(a, b) => {
                 let mut left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let mut right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 if left < 0 {left = 0;}
@@ -822,24 +712,18 @@ impl VM{
 
             Instruction::Put(x, y, c) => {
                 let x = match x{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let y = match y{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let color = match c{
-                    Param::Value(ValueType::Long(v)) => v,
-                    Param::Register(reg) => self.memory[0].get(&reg),
-
-                    _ => panic!("colors can't be 32 bits")
+                    Param::Value(v) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let width = self.canvas[0].width;
@@ -856,44 +740,34 @@ impl VM{
 
             Instruction::Red(c, r) => {
                 let color = match c {
-                    Param::Value(ValueType::Long(v)) => v,
-                    Param::Register(reg) => self.memory[0].get(&reg),
-
-                    _ => panic!("colors can't be 32 bits")
+                    Param::Value(v) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg)
                 };
 
                 let [red, _, _, _] = to_rgba(color);
-                self.memory[0].set(&r, red as u64);
+                self.memory[0].set(&r, red as u32);
                 true
             },
 
             Instruction::RGBA(r, g, b, a, reg) => {
                 let mut r = match r{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(register) => self.memory[0].get(&register) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32
                 };
 
                 let mut g = match g{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(register) => self.memory[0].get(&register) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32
                 };
 
                 let mut b = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(register) => self.memory[0].get(&register) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32
                 };
 
                 let mut a = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(register) => self.memory[0].get(&register) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(register) => self.memory[0].get(&register) as i32
                 };
 
                 r = (r.clamp(0, 255) & 0xff) << 24;
@@ -903,7 +777,7 @@ impl VM{
 
                 let color = r | g | b | a;
 
-                self.memory[0].set(&reg, color as u64);
+                self.memory[0].set(&reg, color as u32);
 
 
                 true
@@ -913,17 +787,13 @@ impl VM{
 
             Instruction::Sample(x, y, r) => {
                 let x = match x {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let y = match y {
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let width = self.canvas[0].width;
@@ -944,48 +814,40 @@ impl VM{
 
             Instruction::Sub(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => v as i32,
-                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
-
-                    _ => panic!("ints can't be 64 bits")
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
                 };
 
                 let result = left - right;
 
-                self.memory[0].set(&r, result as u64);
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
             Instruction::Subf(a, b, r) => {
                 let left = match a{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let right = match b{
-                    Param::Value(ValueType::Big(v)) => f32::from_bits(v),
-                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg) as u32),
-
-                    _ => panic!("floats can't be 64 bits")
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
                 };
 
                 let result = left - right;
 
-                self.memory[0].set(&r, result.to_bits() as u64);
+                self.memory[0].set(&r, result.to_bits());
                 true
             },
 
             Instruction::Width(r) => {
-                self.memory[0].set(&r, self.canvas[0].width as u64);
+                self.memory[0].set(&r, self.canvas[0].width);
                 true
             }
         }

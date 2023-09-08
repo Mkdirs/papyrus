@@ -12,7 +12,7 @@ Download the latest release [here](https://github.com/Mkdirs/papyrus/releases/la
 
 ## Types
 
-* color:    A 64-bits unsigned integer representing a color
+* color:    A 32-bits unsigned integer representing a color
 * int:      A 32-bits signed integer
 * float:    A 32-bits floating point number according to the IEE 754 single precision
 * bool:     A boolean
