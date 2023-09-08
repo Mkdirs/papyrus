@@ -111,6 +111,20 @@ Sets the color of the pixel (`x`, `y`) of the top of the canvas stack as `col`.
 `returns void`\
 Fills entirely the top of the canvas stack with the color `col`.
 
+`sample(x, y)`\
+`x:int`\
+`y:int`\
+`returns color`\
+Sample the color of the pixel (`x`, `y`) of top of the canvas stack. 
+
+`width()`\
+`returns int`\
+Gives the width of the top of the canvas stack.
+
+`height()`\
+`returns int`\
+Gives the height of the top of the canvas stack.
+
 `float(x)`\
 `x:int`\
 `returns float`\
@@ -120,6 +134,26 @@ Cast an int into a float.
 `x:float`\
 `returns int`\
 Cast a float into an int.
+
+`red(col)`\
+`col:color`\
+`returns int`\
+Gives the red value of a color.
+
+`green(col)`\
+`col:color`\
+`returns int`\
+Gives the green value of a color.
+
+`blue(col)`\
+`col:color`\
+`returns int`\
+Gives the blue value of a color.
+
+`alpha(col)`\
+`col:color`\
+`returns int`\
+Gives the alpha value of a color.
 
 ## Subdividing a canvas
 

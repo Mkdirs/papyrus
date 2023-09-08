@@ -76,6 +76,47 @@ impl Default for Environment{
             name: String::from("float"),
             params: vec![Type::Int]
         }, Type::Float);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("sample"),
+            params: vec![Type::Int, Type::Int]
+        }, Type::Color);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("width"),
+            params: vec![]
+
+        }, Type::Int);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("height"),
+            params: vec![]
+
+        }, Type::Int);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("red"),
+            params: vec![Type::Color]
+
+        }, Type::Int);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("green"),
+            params: vec![Type::Color]
+
+        }, Type::Int);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("blue"),
+            params: vec![Type::Color]
+
+        }, Type::Int);
+
+        env.push_func_sign(FuncSign{
+            name: String::from("alpha"),
+            params: vec![Type::Color]
+
+        }, Type::Int);
         
         env
     }

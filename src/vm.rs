@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::{Path, PathBuf}};
 
-use crate::ir::{Instruction, Param, Runtime, Script, ValueType};
+use crate::{ir::{Instruction, Param, Runtime, Script, ValueType}, to_rgba};
 
 
 #[derive(Debug)]
@@ -95,6 +95,9 @@ impl VM{
     pub fn run(&mut self, script_path: &Path, entry_point:&str){
         self.prog_counter = self.get_indx_of(entry_point, script_path);
         let script = self.get_script(script_path).expect("msg").clone();
+        for instr in &script.program{
+            println!("{instr:?}");
+        }
         loop{
             if self.prog_counter >= script.program.len(){
                 panic!("Unexpected end");
@@ -168,6 +171,32 @@ impl VM{
                 let result = left && right;
 
                 self.memory[0].set(&r, result as u64);
+                true
+            },
+
+            Instruction::Alpha(c, r) => {
+                let color = match c {
+                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg),
+
+                    _ => panic!("colors can't be 32 bits")
+                };
+
+                let [_, _, _, a] = to_rgba(color);
+                self.memory[0].set(&r, a as u64);
+                true
+            },
+
+            Instruction::Blue(c, r) => {
+                let color = match c {
+                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg),
+
+                    _ => panic!("colors can't be 32 bits")
+                };
+
+                let [_, b, _, _] = to_rgba(color);
+                self.memory[0].set(&r, b as u64);
                 true
             },
 
@@ -366,6 +395,19 @@ impl VM{
                 true
             },
 
+            Instruction::Green(c, r) => {
+                let color = match c {
+                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg),
+
+                    _ => panic!("colors can't be 32 bits")
+                };
+
+                let [_, g, _, _] = to_rgba(color);
+                self.memory[0].set(&r, g as u64);
+                true
+            },
+
             Instruction::GT(a, b, r) => {
                 let left = match a{
                     Param::Value(ValueType::Big(v)) => v as i32,
@@ -405,6 +447,11 @@ impl VM{
                 let result = left > right;
 
                 self.memory[0].set(&r, result as u64);
+                true
+            },
+
+            Instruction::Height(r) => {
+                self.memory[0].set(&r, self.canvas[0].height as u64);
                 true
             },
 
@@ -798,7 +845,7 @@ impl VM{
                 let width = self.canvas[0].width;
                 let height = self.canvas[0].height;
 
-                if (x >= 0 && x < width as i32) && (y >= 0 && y < height as i32){
+                if (0 <= x && x < width as i32) && (0 <= y && y < height as i32){
                     let i = y as usize * width as usize + x as usize;
                     self.canvas[0].data[i] = color;
                 }
@@ -807,7 +854,46 @@ impl VM{
                 true
             },
 
+            Instruction::Red(c, r) => {
+                let color = match c {
+                    Param::Value(ValueType::Long(v)) => v,
+                    Param::Register(reg) => self.memory[0].get(&reg),
+
+                    _ => panic!("colors can't be 32 bits")
+                };
+
+                let [red, _, _, _] = to_rgba(color);
+                self.memory[0].set(&r, red as u64);
+                true
+            },
+
             Instruction::Ret => {false},
+
+            Instruction::Sample(x, y, r) => {
+                let x = match x {
+                    Param::Value(ValueType::Big(v)) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
+
+                    _ => panic!("ints can't be 64 bits")
+                };
+
+                let y = match y {
+                    Param::Value(ValueType::Big(v)) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32,
+
+                    _ => panic!("ints can't be 64 bits")
+                };
+
+                let width = self.canvas[0].width;
+                let height = self.canvas[0].height;
+
+                if (0 <= x && x < width as i32) && (0 <= y && y < height as i32){
+                    let i = y as usize * width as usize + x as usize;
+                    self.memory[0].set(&r, self.canvas[0].data[i]);
+                }
+
+                true
+            }
 
             Instruction::Save => {
                 self.saved_canvas.push(self.canvas[0].clone());
@@ -853,6 +939,11 @@ impl VM{
                 let result = left - right;
 
                 self.memory[0].set(&r, result.to_bits() as u64);
+                true
+            },
+
+            Instruction::Width(r) => {
+                self.memory[0].set(&r, self.canvas[0].width as u64);
                 true
             }
         }

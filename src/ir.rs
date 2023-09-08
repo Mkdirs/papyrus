@@ -68,6 +68,9 @@ pub enum Instruction{
     Fill(Param),
     Pop,
     Save,
+    Sample(Param, Param, String),
+    Width(String),
+    Height(String),
 
     //JT(Param, String),
     JF(Param, String),
@@ -77,7 +80,12 @@ pub enum Instruction{
     Jump(String),
 
     Call(String, Vec<Param>),
-    Ret
+    Ret,
+
+    Red(Param, String),
+    Green(Param, String),
+    Blue(Param, String),
+    Alpha(Param, String)
 }
 
 #[derive(Debug, Clone)]
@@ -111,6 +119,59 @@ impl Default for Context{
                         name: "int".to_string(),
                         params: vec![Type::Float]
                     }, Type::Int
+                ),
+
+                (
+                    FuncSign{
+                        name: "sample".to_string(),
+                        params: vec![Type::Int, Type::Int]
+                    }, Type::Color
+                ),
+
+                (
+                    FuncSign{
+                        name: "width".to_string(),
+                        params: vec![]
+                    }, Type::Int
+                ),
+
+                (
+                    FuncSign{
+                        name: "height".to_string(),
+                        params: vec![]
+                    }, Type::Int
+                ),
+
+                (
+                    FuncSign{
+                        name: "red".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, Type::Int
+                ),
+
+                (
+                    FuncSign{
+                        name: "green".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, Type::Int
+                ),
+        
+                (
+                    FuncSign{
+                        name: "blue".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, Type::Int
+                ),
+        
+                (
+                    FuncSign{
+                        name: "alpha".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, Type::Int
                 )
             ]),
             renamed_vars: HashMap::default(),
@@ -124,11 +185,65 @@ impl Default for Context{
                         params: vec![Type::Int]
                     }, "float".to_string()
                 ),
+
                 (
                     FuncSign{
                         name: "int".to_string(),
                         params: vec![Type::Float]
                     }, "int".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "sample".to_string(),
+                        params: vec![Type::Int, Type::Int]
+                    }, "sample".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "width".to_string(),
+                        params: vec![]
+                    }, "width".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "height".to_string(),
+                        params: vec![]
+                    }, "height".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "red".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, "red".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "green".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, "green".to_string()
+                ),
+        
+                (
+                    FuncSign{
+                        name: "blue".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, "blue".to_string()
+                ),
+        
+                (
+                    FuncSign{
+                        name: "alpha".to_string(),
+                        params: vec![Type::Color]
+        
+                    }, "alpha".to_string()
                 )
             ]),
             path_aliases: HashMap::new()
@@ -829,6 +944,47 @@ fn parse_func_call(func_call_tree: &AST, script_name:Option<String>,ctx: &mut Co
         ctx.bindings.insert(reg.clone(), Type::Float);
 
         instructions.push(Instruction::Int(params[0].clone(), reg));
+    }else if &name == "sample"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Color);
+
+        instructions.push(Instruction::Sample(params[0].clone(), params[1].clone(), reg));
+
+    }else if &name == "width"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Width(reg));
+
+    }else if &name == "height"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Height(reg));
+
+    }else if &name == "red"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Red(params[0].clone(), reg));
+
+    }else if &name == "green"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Green(params[0].clone(), reg));
+
+    }else if &name == "blue"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Blue(params[0].clone(), reg));
+
+    }else if &name == "alpha"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Alpha(params[0].clone(), reg));
 
     }else{
         let unique_name = ctx.func_labels.get(&sign).unwrap().clone();
