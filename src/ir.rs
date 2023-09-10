@@ -81,7 +81,12 @@ pub enum Instruction{
     Green(Param, String),
     Blue(Param, String),
     Alpha(Param, String),
-    RGBA(Param, Param, Param, Param, String)
+    RGBA(Param, Param, Param, Param, String),
+
+    Cos(Param, String),
+    Sin(Param, String),
+    Floor(Param, String),
+    Ceil(Param, String)
 }
 
 #[derive(Debug, Clone)]
@@ -182,6 +187,34 @@ impl Default for Context{
                         name: "rgb".to_string(),
                         params: vec![Type::Int, Type::Int, Type::Int]
                     }, Type::Color
+                ),
+
+                (
+                    FuncSign{
+                        name: "cos".to_string(),
+                        params: vec![Type::Float]
+                    }, Type::Float
+                ),
+
+                (
+                    FuncSign{
+                        name: "sin".to_string(),
+                        params: vec![Type::Float]
+                    }, Type::Float
+                ),
+
+                (
+                    FuncSign{
+                        name: "floor".to_string(),
+                        params: vec![Type::Float]
+                    }, Type::Int
+                ),
+
+                (
+                    FuncSign{
+                        name: "ceil".to_string(),
+                        params: vec![Type::Float]
+                    }, Type::Int
                 )
             ]),
             renamed_vars: HashMap::default(),
@@ -268,6 +301,34 @@ impl Default for Context{
                         name: "rgb".to_string(),
                         params: vec![Type::Int, Type::Int, Type::Int]
                     }, "rgb".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "cos".to_string(),
+                        params: vec![Type::Float]
+                    }, "cos".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "sin".to_string(),
+                        params: vec![Type::Float]
+                    }, "sin".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "floor".to_string(),
+                        params: vec![Type::Float]
+                    }, "floor".to_string()
+                ),
+
+                (
+                    FuncSign{
+                        name: "ceil".to_string(),
+                        params: vec![Type::Float]
+                    }, "ceil".to_string()
                 )
             ]),
             path_aliases: HashMap::new()
@@ -1021,6 +1082,31 @@ fn parse_func_call(func_call_tree: &AST, script_name:Option<String>,ctx: &mut Co
         ctx.bindings.insert(reg.clone(), Type::Color);
 
         instructions.push(Instruction::RGBA(params[0].clone(), params[1].clone(), params[2].clone(), Param::Value(255), reg));
+
+    }else if &name == "cos"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Float);
+
+        instructions.push(Instruction::Cos(params[0].clone(), reg));
+
+    }else if &name == "sin"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Float);
+
+        instructions.push(Instruction::Sin(params[0].clone(), reg));
+
+        
+    }else if &name == "floor"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Floor(params[0].clone(), reg));
+
+    }else if &name == "ceil"{
+        let reg = String::from("_rt");
+        ctx.bindings.insert(reg.clone(), Type::Int);
+
+        instructions.push(Instruction::Ceil(params[0].clone(), reg));
 
     }else{
         let unique_name = ctx.func_labels.get(&sign).unwrap().clone();

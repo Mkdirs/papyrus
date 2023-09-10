@@ -224,6 +224,18 @@ impl VM{
                 true
             },
 
+            Instruction::Ceil(x, r) => {
+                let x = match x{
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
+                };
+
+                let result = x.ceil() as i32;
+
+                self.memory[0].set(&r, result as u32);
+                true
+            },
+
             Instruction::Copy(a, r) => {
                 match a{
                     Param::Value(v) => self.memory[0].set(&r, v),
@@ -232,6 +244,19 @@ impl VM{
                         self.memory[0].set(&r, v);
                     }
                 }
+                true
+            },
+
+            Instruction::Cos(x, r) => {
+                let x = match x{
+                    Param::Value(v) => f32::from_bits(v),
+
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
+                };
+
+                let result = x.cos();
+
+                self.memory[0].set(&r, result.to_bits());
                 true
             },
 
@@ -305,6 +330,18 @@ impl VM{
                     }
                 }
 
+                true
+            },
+
+            Instruction::Floor(x, r) => {
+                let x = match x{
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
+                };
+
+                let result = x.floor() as i32;
+
+                self.memory[0].set(&r, result as u32);
                 true
             },
 
@@ -811,6 +848,18 @@ impl VM{
 
             Instruction::Save => {
                 self.saved_canvas.push(self.canvas[0].clone());
+                true
+            },
+
+            Instruction::Sin(x, r) => {
+                let x = match x{
+                    Param::Value(v) => f32::from_bits(v),
+                    Param::Register(reg) => f32::from_bits(self.memory[0].get(&reg))
+                };
+
+                let result = x.sin();
+
+                self.memory[0].set(&r, result.to_bits());
                 true
             },
 

@@ -170,6 +170,26 @@ Constructs a color.
 `returns color`\
 Constructs a solid color.(calls `rgba(r, g, b, 255)` )
 
+`cos(x)`\
+`x:float`\
+`returns float`\
+Gives the cosine of x.
+
+`sin(x)`\
+`x:float`\
+`returns float`\
+Gives the sine of x.
+
+`ceil(x)`\
+`x:float`\
+`returns int`\
+Gives the ceil of x.
+
+`floor(x)`\
+`x:float`\
+`returns int`\
+Gives the floor of x.
+
 ## Subdividing a canvas
 
 ```
