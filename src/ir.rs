@@ -954,27 +954,38 @@ fn parse_def(def_tree: &AST, parent:&mut Context) -> Vec<Instruction>{
     ctx.func_returns = parent.func_returns.clone();
 
     instructions.append(&mut _parse(&block.children, &mut ctx));
-    instructions.push(Instruction::Ret);
+    
+    if ret_type == Type::Void{
+        instructions.push(Instruction::Ret);
+    }
 
     instructions
 }
 
 fn parse_return(return_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
-    if return_tree.children.is_empty(){ return vec![]; }
+    let mut instructions:Vec<Instruction> = vec![];
+    
+    if !return_tree.children.is_empty(){
+        let expr = &return_tree.children[0];
 
-    let expr = &return_tree.children[0];
-
-    if !expr.children.is_empty(){
-        let (instr, t) = expand_expr(expr, ctx, "rt".to_string());
-        ctx.bindings.insert("_rt".to_string(), t);
+        if !expr.children.is_empty(){
+            let (mut instr, t) = expand_expr(expr, ctx, "rt".to_string());
+            ctx.bindings.insert("_rt".to_string(), t);
         
-        instr
-    }else{
-        let (p, t) = to_param(&expr.kind, ctx);
-        ctx.bindings.insert("_rt".to_string(), t);
+            instructions.append(&mut instr);
+        }else{
+            let (p, t) = to_param(&expr.kind, ctx);
+            ctx.bindings.insert("_rt".to_string(), t);
 
-        vec![Instruction::Copy(p, "_rt".to_string())]
+            instructions.push(Instruction::Copy(p, "_rt".to_string()));
+        }
     }
+
+    instructions.push(Instruction::Ret);
+
+    
+
+    instructions
 }
 fn parse_func_call(func_call_tree: &AST, script_name:Option<String>,ctx: &mut Context) -> (Vec<Instruction>, FuncSign){
     let name = func_call_tree.kind.literal.clone();

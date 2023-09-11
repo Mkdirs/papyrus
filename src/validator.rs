@@ -336,6 +336,24 @@ fn verify_def(def_tree: &AST, is_public:bool, env:&mut Environment) -> bool{
     }
 
     block_env.push_var("?exit_type", expected_return_type.unwrap_or(Type::Void));
+
+    let func_sign = FuncSign{
+        name: name.clone(),
+        params: params.iter().map(|e| get_type(e.children[1].kind.literal.clone()).unwrap()).collect()
+    };
+
+    if !env.has_func_sign(&func_sign){
+        if is_public{
+            env.push_public_func(Path::new(&def_tree.kind.location.file), func_sign.clone(), expected_return_type.unwrap());
+            block_env.push_public_func(Path::new(&def_tree.kind.location.file), func_sign.clone(), expected_return_type.unwrap());
+        }
+        
+        env.push_func_sign(func_sign.clone(), expected_return_type.unwrap());
+        block_env.push_func_sign(func_sign, expected_return_type.unwrap());
+    }else{
+        report(&format!("Function '{}' already exists", func_sign), def_tree.kind.location.clone());
+        valid = false;
+    }
     
 
     if !verify(&block.children, None, &mut block_env){ valid = false; }
@@ -355,24 +373,6 @@ fn verify_def(def_tree: &AST, is_public:bool, env:&mut Environment) -> bool{
     if env.has_import(&name){
         report(&format!("The name '{name}' is already taken"), def_tree.kind.location.clone());
         valid = false;
-    }
-
-    if valid{
-        let func_sign = FuncSign{
-            name,
-            params: params.iter().map(|e| get_type(e.children[1].kind.literal.clone()).unwrap()).collect()
-        };
-
-        if !env.has_func_sign(&func_sign){
-            if is_public{
-                env.push_public_func(Path::new(&def_tree.kind.location.file), func_sign.clone(), expected_return_type.unwrap());
-            }
-            
-            env.push_func_sign(func_sign, expected_return_type.unwrap());
-        }else{
-            report(&format!("Function '{}' already exists", func_sign), def_tree.kind.location.clone());
-            valid = false;
-        }
     }
 
     valid
