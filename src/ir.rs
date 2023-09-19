@@ -539,12 +539,8 @@ fn to_param(token: &Token<TokenType>, ctx: &Context) -> (Param, Type){
         )
     
     }else if token.kind == TokenType::Bool{
-        if &token.literal == "true"{
-            (Param::Value(1), Type::Bool)
-        }else if &token.literal == "false"{
-            (Param::Value(1), Type::Bool)
-        }else{ panic!("Should not be there") }
-
+        (Param::Value( (&token.literal == "true") as u32), Type::Bool)
+        
     }else if token.kind == TokenType::Hex{
         let lit = token.literal.clone();
         (
@@ -1195,9 +1191,8 @@ fn parse_if(if_tree: &AST, ctx: &mut Context, root_scope_label:String) -> Vec<In
         let else_tree = &if_tree.children[2];
         
         if else_tree.children[0].kind.kind == TokenType::If{
-            let n = ctx.labels.iter().filter(|e| e.starts_with("_elif")).count();
-
-            let else_if_start = format!("_elif{}", n);
+            
+            let else_if_start = ctx.create_temp_label("elif");
             instructions.push(Instruction::JF(param, else_if_start.clone()));
             instructions.append(&mut _parse(&block.children, ctx));
             instructions.push(Instruction::Jump(root_scope_label.clone()));

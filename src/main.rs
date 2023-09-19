@@ -347,7 +347,8 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
         .then(RegexElement::Item('/', Quantifier::Exactly(2)))
         .then(RegexElement::NoneOf(vec![
             RegexElement::Item('\n', Quantifier::Exactly(1))
-        ], Quantifier::ZeroOrMany));
+        ], Quantifier::ZeroOrMany))
+        .then(RegexElement::Item('\n', Quantifier::ZeroOrMany));
 
     let pub_regex = Regex::new()
             .then(RegexElement::Item('p', Quantifier::Exactly(1)))
@@ -395,8 +396,6 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(ident_regex, TokenType::Ident));
 
 
-    lexer.register(LexerNode::new(sigle_comment_regex, TokenType::SingleComment));
-
 
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('(', Quantifier::Exactly(1))), TokenType::LParen));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item(')', Quantifier::Exactly(1))), TokenType::RParen));
@@ -412,6 +411,8 @@ fn init_lexer(lexer:&mut Lexer<TokenType>){
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('+', Quantifier::Exactly(1))), TokenType::Plus));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('-', Quantifier::Exactly(1))), TokenType::Minus));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('*', Quantifier::Exactly(1))), TokenType::Mul));
+    
+    lexer.register(LexerNode::new(sigle_comment_regex, TokenType::SingleComment));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('/', Quantifier::Exactly(1))), TokenType::Div));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('%', Quantifier::Exactly(1))), TokenType::Mod));
     lexer.register(LexerNode::new(Regex::new().then(RegexElement::Item('^', Quantifier::Exactly(1))), TokenType::Pow));
