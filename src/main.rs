@@ -1,4 +1,5 @@
 use environment::Environment;
+use image::ImageFormat;
 use ir::Runtime;
 use neoglot_lib::{regex::*, lexer::*, parser::AST};
 use validator::verify;
@@ -10,7 +11,6 @@ mod validator;
 mod environment;
 mod ir;
 mod vm;
-mod output;
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType{
@@ -152,13 +152,23 @@ fn run(file:&str, output:&str, format:&str, options: HashSet<String>){
 
             if output == IMG_OUTPUT{
                 for (i, canvas) in vm.get_saved_canvas().iter().enumerate(){
-                    let data = canvas.data.iter().flat_map(|e| to_rgba(*e)).collect::<Vec<u8>>();
 
                     if format == IMG_FORMAT[0]{
-                        output::stbi_write_png(&format!("canvas{i}.png"), canvas.width, canvas.height, 4, &data, 4*canvas.width);
+                        match canvas.data.save_with_format(&format!("canvas{i}.png"), ImageFormat::Png){
+                            Err(e) => {
+                                println!("Could not save image at canvas{i}.png:\n\t{e}");
+                            },
+                            _ => ()
+                        }
                     
                     }else if format == IMG_FORMAT[1]{
-                        output::stbi_write_jpg(&format!("canvas{i}.jpg"), canvas.width, canvas.height, 4, &data, 85);
+                        match canvas.data.save_with_format(&format!("canvas{i}.jpg"), ImageFormat::Jpeg){
+                            Err(e) => {
+                                println!("Could not save image at canvas{i}.jpg:\n\t{e}");
+                            },
+
+                            _ => ()
+                        }
                     }
                 }
             }
@@ -227,6 +237,17 @@ fn to_rgba(pixel: u32) -> [u8; 4]{
     let b = ((pixel >> 8) & 0xff) as u8;
     let a = (pixel & 0xff) as u8;
     [r, g, b, a]
+}
+
+fn from_rgba(r: u8, g: u8, b: u8, a: u8) -> u32{
+    let r = (r as u32 & 0xff) << 24;
+    let g = (g as u32 & 0xff) << 16;
+    let b = (b as u32 & 0xff) << 8;
+    let a = a as u32 & 0xff;
+
+    let color = r | g | b | a;
+    color
+
 }
 
 fn init_lexer(lexer:&mut Lexer<TokenType>){

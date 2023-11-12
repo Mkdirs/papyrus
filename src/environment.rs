@@ -38,6 +38,116 @@ pub struct Environment{
     pub cached_imports: HashMap<PathBuf, Vec<AST<Token<TokenType>>>>
 }
 
+pub fn builtin_funcs() -> HashMap<FuncSign, Type>{
+    HashMap::from_iter([
+        (FuncSign{
+            name: String::from("create_canvas"),
+            params: vec![Type::Int, Type::Int]
+        }, Type::Void),
+
+        (FuncSign{
+            name: String::from("save_canvas"),
+            params: vec![]
+        }, Type::Void),
+
+        (FuncSign{
+            name: String::from("put"),
+            params: vec![Type::Int, Type::Int, Type::Color]
+        }, Type::Void),
+
+        (FuncSign{
+            name: String::from("fill"),
+            params: vec![Type::Color]
+        }, Type::Void),
+
+        (FuncSign{
+            name: String::from("int"),
+            params: vec![Type::Float]
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("float"),
+            params: vec![Type::Int]
+        }, Type::Float),
+
+        (FuncSign{
+            name: String::from("sample"),
+            params: vec![Type::Int, Type::Int]
+        }, Type::Color),
+
+        (FuncSign{
+            name: String::from("width"),
+            params: vec![]
+
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("height"),
+            params: vec![]
+
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("red"),
+            params: vec![Type::Color]
+
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("green"),
+            params: vec![Type::Color]
+
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("blue"),
+            params: vec![Type::Color]
+
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("alpha"),
+            params: vec![Type::Color]
+
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("rgba"),
+            params: vec![Type::Int, Type::Int, Type::Int, Type::Int]
+        }, Type::Color),
+
+        (FuncSign{
+            name: String::from("rgb"),
+            params: vec![Type::Int, Type::Int, Type::Int]
+        }, Type::Color),
+
+        (FuncSign{
+            name: String::from("cos"),
+            params: vec![Type::Float]
+        }, Type::Float),
+
+        (FuncSign{
+            name: String::from("sin"),
+            params: vec![Type::Float]
+        }, Type::Float),
+
+        (FuncSign{
+            name: String::from("floor"),
+            params: vec![Type::Float]
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("ceil"),
+            params: vec![Type::Float]
+        }, Type::Int),
+
+        (FuncSign{
+            name: String::from("resize"),
+            params: vec![Type::Int, Type::Int]
+        }, Type::Void)
+    ])
+}
+
 impl Default for Environment{
     fn default() -> Self {
         let mut env = Environment::new();
@@ -46,107 +156,8 @@ impl Default for Environment{
         env.push_type("float");
         env.push_type("bool");
         env.push_type("color");
-
-        env.push_func_sign(FuncSign{
-            name: String::from("create_canvas"),
-            params: vec![Type::Int, Type::Int]
-        }, Type::Void);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("save_canvas"),
-            params: vec![]
-        }, Type::Void);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("put"),
-            params: vec![Type::Int, Type::Int, Type::Color]
-        }, Type::Void);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("fill"),
-            params: vec![Type::Color]
-        }, Type::Void);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("int"),
-            params: vec![Type::Float]
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("float"),
-            params: vec![Type::Int]
-        }, Type::Float);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("sample"),
-            params: vec![Type::Int, Type::Int]
-        }, Type::Color);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("width"),
-            params: vec![]
-
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("height"),
-            params: vec![]
-
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("red"),
-            params: vec![Type::Color]
-
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("green"),
-            params: vec![Type::Color]
-
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("blue"),
-            params: vec![Type::Color]
-
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("alpha"),
-            params: vec![Type::Color]
-
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("rgba"),
-            params: vec![Type::Int, Type::Int, Type::Int, Type::Int]
-        }, Type::Color);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("rgb"),
-            params: vec![Type::Int, Type::Int, Type::Int]
-        }, Type::Color);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("cos"),
-            params: vec![Type::Float]
-        }, Type::Float);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("sin"),
-            params: vec![Type::Float]
-        }, Type::Float);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("floor"),
-            params: vec![Type::Float]
-        }, Type::Int);
-
-        env.push_func_sign(FuncSign{
-            name: String::from("ceil"),
-            params: vec![Type::Float]
-        }, Type::Int);
+        env.func_signs = builtin_funcs().iter().map(|e| e.0.clone()).collect();
+        env.func_returns = builtin_funcs();
         
         env
     }

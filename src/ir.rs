@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::{PathBuf, Path}};
 
 use neoglot_lib::{parser, lexer::Token};
 
-use crate::{TokenType, environment::{Type, FuncSign}, validator::get_type};
+use crate::{TokenType, environment::{Type, FuncSign, builtin_funcs}, validator::get_type};
 
 type AST = parser::AST<Token<TokenType>>;
 
@@ -66,6 +66,7 @@ pub enum Instruction{
     Sample(Param, Param, String),
     Width(String),
     Height(String),
+    Resize(Param, Param),
 
     //JT(Param, String),
     JF(Param, String),
@@ -108,229 +109,11 @@ impl Default for Context{
             registers: Vec::default(),
             labels: Vec::default(),
             bindings: HashMap::default(),
-            func_returns: HashMap::from_iter([
-                (
-                    FuncSign{
-                        name: "float".to_string(),
-                        params: vec![Type::Int]
-                    }, Type::Float
-                ),
-                (
-                    FuncSign{
-                        name: "int".to_string(),
-                        params: vec![Type::Float]
-                    }, Type::Int
-                ),
-
-                (
-                    FuncSign{
-                        name: "sample".to_string(),
-                        params: vec![Type::Int, Type::Int]
-                    }, Type::Color
-                ),
-
-                (
-                    FuncSign{
-                        name: "width".to_string(),
-                        params: vec![]
-                    }, Type::Int
-                ),
-
-                (
-                    FuncSign{
-                        name: "height".to_string(),
-                        params: vec![]
-                    }, Type::Int
-                ),
-
-                (
-                    FuncSign{
-                        name: "red".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, Type::Int
-                ),
-
-                (
-                    FuncSign{
-                        name: "green".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, Type::Int
-                ),
-        
-                (
-                    FuncSign{
-                        name: "blue".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, Type::Int
-                ),
-        
-                (
-                    FuncSign{
-                        name: "alpha".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, Type::Int
-                ),
-
-                (
-                    FuncSign{
-                        name: "rgba".to_string(),
-                        params: vec![Type::Int, Type::Int, Type::Int, Type::Int]
-                    }, Type::Color
-                ),
-
-                (
-                    FuncSign{
-                        name: "rgb".to_string(),
-                        params: vec![Type::Int, Type::Int, Type::Int]
-                    }, Type::Color
-                ),
-
-                (
-                    FuncSign{
-                        name: "cos".to_string(),
-                        params: vec![Type::Float]
-                    }, Type::Float
-                ),
-
-                (
-                    FuncSign{
-                        name: "sin".to_string(),
-                        params: vec![Type::Float]
-                    }, Type::Float
-                ),
-
-                (
-                    FuncSign{
-                        name: "floor".to_string(),
-                        params: vec![Type::Float]
-                    }, Type::Int
-                ),
-
-                (
-                    FuncSign{
-                        name: "ceil".to_string(),
-                        params: vec![Type::Float]
-                    }, Type::Int
-                )
-            ]),
+            func_returns: builtin_funcs(),
             renamed_vars: HashMap::default(),
             top_function: String::default(),
             imports: vec![],
-            func_labels: HashMap::from_iter([
-
-                (
-                    FuncSign{
-                        name: "float".to_string(),
-                        params: vec![Type::Int]
-                    }, "float".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "int".to_string(),
-                        params: vec![Type::Float]
-                    }, "int".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "sample".to_string(),
-                        params: vec![Type::Int, Type::Int]
-                    }, "sample".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "width".to_string(),
-                        params: vec![]
-                    }, "width".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "height".to_string(),
-                        params: vec![]
-                    }, "height".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "red".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, "red".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "green".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, "green".to_string()
-                ),
-        
-                (
-                    FuncSign{
-                        name: "blue".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, "blue".to_string()
-                ),
-        
-                (
-                    FuncSign{
-                        name: "alpha".to_string(),
-                        params: vec![Type::Color]
-        
-                    }, "alpha".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "rgba".to_string(),
-                        params: vec![Type::Int, Type::Int, Type::Int, Type::Int]
-                    }, "rgba".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "rgb".to_string(),
-                        params: vec![Type::Int, Type::Int, Type::Int]
-                    }, "rgb".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "cos".to_string(),
-                        params: vec![Type::Float]
-                    }, "cos".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "sin".to_string(),
-                        params: vec![Type::Float]
-                    }, "sin".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "floor".to_string(),
-                        params: vec![Type::Float]
-                    }, "floor".to_string()
-                ),
-
-                (
-                    FuncSign{
-                        name: "ceil".to_string(),
-                        params: vec![Type::Float]
-                    }, "ceil".to_string()
-                )
-            ]),
+            func_labels: HashMap::new(),
             path_aliases: HashMap::new()
         }
     }
@@ -1114,6 +897,8 @@ fn parse_func_call(func_call_tree: &AST, script_name:Option<String>,ctx: &mut Co
         ctx.bindings.insert(reg.clone(), Type::Int);
 
         instructions.push(Instruction::Ceil(params[0].clone(), reg));
+    }else if &name == "resize"{
+        instructions.push(Instruction::Resize(params[0].clone(), params[1].clone()));
 
     }else{
         let unique_name = ctx.func_labels.get(&sign).unwrap().clone();

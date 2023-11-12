@@ -1,6 +1,8 @@
 use std::{collections::HashMap, path::{Path, PathBuf}};
 
-use crate::{ir::{Instruction, Param, Runtime, Script}, to_rgba};
+use image::{ImageBuffer, RgbaImage, Rgba, imageops};
+
+use crate::{ir::{Instruction, Param, Runtime, Script}, to_rgba, from_rgba};
 
 
 #[derive(Debug)]
@@ -29,34 +31,50 @@ impl StackFrame{
 pub struct Canvas{
     pub width: u32,
     pub height: u32,
-    pub data: Vec<u32>
+    pub data: RgbaImage
+    
 }
+
+
 
 impl Canvas{
     pub fn new(width: u32, height: u32) -> Self{
-        let mut data:Vec<u32> = vec![];
-        for _ in 0..width*height{
-            data.push(0);
-        }
+        let data = ImageBuffer::new(width, height);
         Canvas { width, height, data}
+    }
+
+    pub fn put(&mut self, x:u32, y:u32, pixel:u32){
+        self.data.put_pixel(x, y, Rgba(to_rgba(pixel)));
+    }
+
+    pub fn get(&self, x:u32, y:u32) -> u32{
+        let [r, g, b, a] = self.data.get_pixel(x, y).0;
+        from_rgba(r, g, b, a)
     }
 
     pub fn merge(&mut self, offst_x:i32, offst_y:i32, source:Self){
         for y in offst_y..(offst_y+source.height as i32){
             for x in offst_x..(offst_x+source.width as i32){
                 if (x >= 0 && x < self.width as i32) && (y >= 0 && y < self.height as i32){
-                    let i = y * (self.width as i32) + x;
-                    let other_i = (y-offst_y) * (source.width as i32) + (x-offst_x);
 
-                    let pixel = source.data[other_i as usize];
+                    let pixel = source.get((x-offst_x) as u32, (y-offst_y) as u32);
                     
                     let [_, _, _, a] = to_rgba(pixel);
                     if a != 0{
-                        self.data[i as usize] = pixel;
+                        //TODO: Try blending colors
+                        self.put(x as u32, y as u32, pixel);
                     }
                 }
             }
         }
+    }
+
+
+
+    pub fn resize(&mut self, w:u32, h:u32){
+        self.width = w;
+        self.height = h;
+        self.data = imageops::resize(&self.data, w, h, imageops::FilterType::Nearest);
     }
 }
 
@@ -314,19 +332,15 @@ impl VM{
             },
 
             Instruction::Fill(c) => {
-                match c{
-                    Param::Value(v) => {
-                        for i in 0..self.canvas[0].data.len(){
-                            self.canvas[0].data[i] = v;
-                        }
-                    },
+                let pixel = match c{
+                    Param::Value(v) => v,
 
-                    Param::Register(reg) => {
-                        let v = self.memory[0].get(&reg);
+                    Param::Register(reg) => self.memory[0].get(&reg)
+                };
 
-                        for i in 0..self.canvas[0].data.len(){
-                            self.canvas[0].data[i] = v;
-                        }
+                for y in 0..self.canvas[0].height{
+                    for x in 0..self.canvas[0].width{
+                        self.canvas[0].put(x, y, pixel);
                     }
                 }
 
@@ -769,8 +783,7 @@ impl VM{
                 let height = self.canvas[0].height;
 
                 if (0 <= x && x < width as i32) && (0 <= y && y < height as i32){
-                    let i = y as usize * width as usize + x as usize;
-                    self.canvas[0].data[i] = color;
+                    self.canvas[0].put(x as u32, y as u32, color);
                 }
 
 
@@ -785,6 +798,24 @@ impl VM{
 
                 let [red, _, _, _] = to_rgba(color);
                 self.memory[0].set(&r, red as u32);
+                true
+            },
+
+            Instruction::Resize(w, h) => {
+                let mut w = match w {
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
+                };
+
+                let mut h = match h {
+                    Param::Value(v) => v as i32,
+                    Param::Register(reg) => self.memory[0].get(&reg) as i32
+                };
+
+                if w < 0 {w = 0;}
+                if h < 0 {h = 0;}
+
+                self.canvas[0].resize(w as u32, h as u32);
                 true
             },
 
@@ -839,8 +870,7 @@ impl VM{
                 let height = self.canvas[0].height;
 
                 if (0 <= x && x < width as i32) && (0 <= y && y < height as i32){
-                    let i = y as usize * width as usize + x as usize;
-                    self.memory[0].set(&r, self.canvas[0].data[i]);
+                    self.memory[0].set(&r, self.canvas[0].get(x as u32, y as u32));
                 }
 
                 true
