@@ -93,7 +93,7 @@ You must have a function called 'main' which is the entry point of your script.
 `w:int`\
 `h:int`\
 `returns void`\
-Creates a canvas of width `w` and height `h` and push it on the canvas stack.
+Creates a canvas of width `w` and height `h` and push it on top of the canvas stack.
 
 `save_canvas()`\
 `returns void`\
@@ -104,26 +104,26 @@ Pops the top of the canvas stack and saves it for later.
 `y:int`\
 `col:color`\
 `returns void`\
-Sets the color of the pixel (`x`, `y`) of the top of the canvas stack as `col`.
+Sets the color of the pixel (`x`, `y`) of the top canvas of the stack as `col`.
 
 `fill(col)`\
 `col:color`\
 `returns void`\
-Fills entirely the top of the canvas stack with the color `col`.
+Fills entirely the top canvas of the stack with the color `col`.
 
 `sample(x, y)`\
 `x:int`\
 `y:int`\
 `returns color`\
-Sample the color of the pixel (`x`, `y`) of top of the canvas stack. 
+Sample the pixel (`x`, `y`) of the top canvas of the stack. 
 
 `width()`\
 `returns int`\
-Gives the width of the top of the canvas stack.
+Gives the width of the top canvas of the stack.
 
 `height()`\
 `returns int`\
-Gives the height of the top of the canvas stack.
+Gives the height of the top canvas of the stack.
 
 `float(x)`\
 `x:int`\
@@ -189,6 +189,11 @@ Gives the ceil of x.
 `x:float`\
 `returns int`\
 Gives the floor of x.
+
+`resize(w, h)`\
+`w:int`\
+`h:int`\
+Resizes the top canvas of the stack.
 
 ## Subdividing a canvas
 
