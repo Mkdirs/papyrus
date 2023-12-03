@@ -748,7 +748,7 @@ fn parse_return(return_tree: &AST, ctx: &mut Context) -> Vec<Instruction>{
         let expr = &return_tree.children[0];
 
         if !expr.children.is_empty(){
-            let (mut instr, t) = expand_expr(expr, ctx, "rt".to_string());
+            let (mut instr, t) = expand_expr(expr, ctx, "_rt".to_string());
             ctx.bindings.insert("_rt".to_string(), t);
         
             instructions.append(&mut instr);
